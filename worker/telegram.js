@@ -39,11 +39,37 @@ export function parseTelegramFeed(html, now = new Date()) {
   if (!posts.size) throw new Error('У публічній стрічці немає доступних текстових повідомлень. Відкрий Telegram.');
   return {channel:'Старокостянтинів 24/7', source:telegramSource, fetchedAt:now.toISOString(), posts:[...posts.values()].sort((a,b)=>b.publishedAt.localeCompare(a.publishedAt)||Number(b.id)-Number(a.id)).slice(0,20)};
 }
+
+export function filterThreatPosts(posts, now = new Date()) {
+  const ordered = [...posts].sort((a,b)=>a.publishedAt.localeCompare(b.publishedAt)||Number(a.id)-Number(b.id));
+  const selected = [];
+  let contextAt = -Infinity;
+  const cutoff = now.getTime() - 2 * 60 * 60 * 1000;
+  for (const post of ordered) {
+    const at = Date.parse(post.publishedAt);
+    if (!Number.isFinite(at) || at < cutoff || at > now.getTime()+60000) continue;
+    const text = post.text.toLocaleLowerCase('uk-UA');
+    // A heuristic, not a verification of a threat or an official alarm status.
+    const promo = /збір|донат|розіграш|ваканс|прода[єюм]|купити|реклам/.test(text.slice(0,180));
+    const news = /вчора|минуло[їг]|минулого|за минулу|за ніч|підсум|статистик|річниц|повідомлялося/.test(text);
+    if (promo || news) continue;
+    const threat = /шахед|shahed|бпла|бплa|безпілот|ракет|аеробаліст|кинджал|вибух|повітрян.{0,15}тривог|відбій|робот.{0,10}ппо|ппо працю|загроз|ціл[іьяю]/.test(text);
+    const movement = /летить|летять|проліта|пряму[єють]|руха[єють]|курсом|курс без змін|поверта[єють]|віддаля[єють]|наближа[єють]/.test(text);
+    const shortContext = text.length <= 240 && at-contextAt <= 10*60*1000 &&
+      /без змін|над нами|в сторону|у бік|за\s+\d+\s*км|^[\s❗️⚠️🔴]*на\s/.test(text);
+    if (threat || movement || shortContext) {
+      selected.push({...post, selection:shortContext&&!threat&&!movement?'context':'keywords'});
+      contextAt=at;
+    }
+  }
+  return {posts:selected.reverse(), filter:{region:'Хмельницька область', windowHours:2, inspected:posts.length, hidden:posts.length-selected.length, method:'keywords-and-context', officialAlarmConnected:false}};
+}
+
 let telegramCache = null;
 let telegramPending = null;
 export async function loadTelegramFeed() {
-  if (telegramCache && Date.now() - telegramCache.at < 30000) return telegramCache.data;
-  if (telegramPending) return telegramPending;
+  if (telegramCache && Date.now() - telegramCache.at < 30000) return {...telegramCache.data,...filterThreatPosts(telegramCache.data.posts)};
+  if (telegramPending) return telegramPending.then(data=>({...data,...filterThreatPosts(data.posts)}));
   telegramPending = (async () => {
     const response = await fetch('https://t.me/s/' + telegramChannel, {signal:AbortSignal.timeout(12000), redirect:'manual', headers:{Accept:'text/html'}});
     if (!response.ok) throw new Error('Telegram тимчасово не віддає повідомлення. Відкрий канал у Telegram.');
@@ -53,6 +79,6 @@ export async function loadTelegramFeed() {
     telegramCache = {at:Date.now(), data};
     return data;
   })();
-  try { return await telegramPending; }
+  try { const data = await telegramPending; return {...data,...filterThreatPosts(data.posts)}; }
   finally { telegramPending = null; }
 }
