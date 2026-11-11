@@ -36,15 +36,15 @@ export default {
   async fetch(request,env,ctx){
     const url=new URL(request.url);
     if(url.pathname==='/api/ad-management')return manageAdvertisement(request);
-    if(request.method!=='GET')return json({error:'Метод не підтримується.'},405);
+    if(request.method!=='GET'&&request.method!=='HEAD')return json({error:'Метод не підтримується.'},405);
     if(url.pathname==='/ads-manager')return new Response(adsManagerPage,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'no-referrer','content-security-policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src data: blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"}});
     if(url.pathname==='/sw.js')return new Response(serviceWorkerCode,{headers:{'content-type':'application/javascript; charset=utf-8','cache-control':'no-cache','service-worker-allowed':'/','x-content-type-options':'nosniff'}});
     if(url.pathname==='/manifest.webmanifest')return new Response(JSON.stringify(appManifest),{headers:{'content-type':'application/manifest+json; charset=utf-8','cache-control':'no-cache','x-content-type-options':'nosniff'}});
     if(appAssets[url.pathname]){
       const bytes=Uint8Array.from(atob(appAssets[url.pathname]),character=>character.charCodeAt(0));
-      return new Response(bytes,{headers:{'content-type':'image/png','cache-control':'public, max-age=86400','x-content-type-options':'nosniff'}});
+      return new Response(request.method==='HEAD'?null:bytes,{headers:{'content-type':'image/png','content-length':String(bytes.length),'cache-control':'public, max-age=86400','x-content-type-options':'nosniff'}});
     }
-    if(url.pathname==='/')return new Response(page,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-cache','x-content-type-options':'nosniff','referrer-policy':'strict-origin-when-cross-origin'}});
+    if(url.pathname==='/')return new Response(request.method==='HEAD'?null:page,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-cache','x-content-type-options':'nosniff','referrer-policy':'strict-origin-when-cross-origin'}});
     try {
       if(url.pathname==='/api/advertisement')return json(await loadAdvertisement(/^[a-f0-9]{40}$/.test(url.searchParams.get('revision')||'')?url.searchParams.get('revision'):null));
       if(url.pathname==='/api/fuel')return json(await loadSlavutaDiesel());

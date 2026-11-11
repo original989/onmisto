@@ -16,6 +16,7 @@ for (const size of [180, 192, 512]) {
   const path = '/icons/onmisto-' + size + '.png';
   assets[path] = (await readFile('web' + path)).toString('base64');
 }
+assets['/share/onmisto-v1.png'] = (await readFile('web/share-card.base64','utf8')).trim();
 const manifest = JSON.parse(await readFile('web/manifest.webmanifest', 'utf8'));
 await rm('dist', { recursive: true, force: true });
 await mkdir('dist/server', { recursive: true });
