@@ -94,6 +94,36 @@ dialog[open]{animation:dialog-arrive 220ms cubic-bezier(.2,.8,.2,1)}
 
 .saved-banner,.change-banner{border:1px solid var(--glass-edge);background:var(--glass);border-radius:16px;padding:13px 16px;font-size:12px;line-height:1.6;margin:0}.saved-banner{color:var(--off-ink);background:var(--off)}.change-banner{display:flex;gap:14px;justify-content:space-between;align-items:center;border-color:#8cbcff66}.change-banner strong{font-size:13px}.change-banner .text-button{font-size:12px;flex:none}.hour.changed{outline:2px solid #8cbcff;outline-offset:-3px}.hour.changed::after{content:'';position:absolute;right:4px;top:4px;width:4px;height:4px;border-radius:50%;background:#8cbcff}.change-legend{font-size:10px;color:#8cbcff;margin:0}
 .shell{width:100%}.shell>*{min-width:0}.day-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.summary-stat,.date-tab,.transition-copy{min-width:0}.summary-stat strong{font-size:clamp(20px,4.8vw,25px);font-variant-numeric:tabular-nums;overflow-wrap:normal}.date-tabs{min-width:0}.date-tab{flex:1 1 0}.transition-panel{grid-template-columns:minmax(0,1fr) auto}.transition-time{min-width:0}@media(max-width:370px){.summary-stat{padding:12px}.transition-panel{padding:16px;gap:10px}.transition-time strong{font-size:24px}.transition-copy strong{font-size:15px}}
+
+/* Square alert widget */
+.alarm-card.alarm-widget{width:min(220px,100%);min-height:220px;aspect-ratio:1;align-self:center;display:flex;flex-direction:column;justify-content:space-between;align-items:stretch;gap:8px;padding:17px 18px;border-radius:30px;background-image:radial-gradient(circle at 50% 25%,rgba(140,227,200,.1),transparent 67%),linear-gradient(140deg,rgba(255,255,255,.04),transparent 60%)}
+.alarm-widget-top{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--dim);font-size:9px;font-weight:650;letter-spacing:.045em}
+.alarm-widget-top>i{width:5px;height:5px;border-radius:50%;background:var(--dim);box-shadow:0 0 0 4px #9fbbc009}
+.alarm-widget.inactive .alarm-widget-top>i{background:var(--accent)}
+.alarm-widget.active .alarm-widget-top>i,.alarm-widget.partial .alarm-widget-top>i{background:var(--alarm)}
+.alarm-visual{height:67px;position:relative;display:grid;place-items:center;margin:0}
+.alarm-widget .alarm-symbol{width:55px;height:55px;border-radius:19px;color:var(--dim);background:rgba(143,195,196,.04);box-shadow:inset 0 1px 0 #ffffff10}
+.alarm-widget .alarm-symbol svg{width:28px;height:28px;stroke-width:1.5}
+.alarm-widget .alarm-symbol::before{content:none!important}
+.alarm-rings{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;color:var(--accent)}
+.alarm-rings i{position:absolute;width:66px;height:66px;border:1px solid currentColor;border-radius:50%;opacity:.1}
+.alarm-rings i+i{width:87px;height:87px;opacity:.045}
+.alarm-widget.inactive .alarm-symbol{animation:widget-idle-glow 5s ease-in-out infinite}
+.alarm-card.alarm-widget .alarm-content{text-align:center;gap:4px;align-items:center}
+.alarm-card.alarm-widget strong{font-size:17px;line-height:1.25;letter-spacing:-.35px;color:var(--ink)}
+.alarm-card.alarm-widget small{font-size:10px;line-height:1.4}
+.alarm-widget-bottom{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:8px;color:var(--dim);min-height:14px}
+.alarm-card.alarm-widget .alarm-widget-bottom a{font-size:8px;text-decoration:none;color:var(--dim);padding:4px 0}
+.alarm-card.alarm-widget.active,.alarm-card.alarm-widget.partial{background-image:radial-gradient(circle at 50% 28%,rgba(255,122,116,.16),transparent 65%),linear-gradient(140deg,rgba(111,43,54,.45),rgba(32,39,52,.66))}
+.alarm-card.alarm-widget.active strong,.alarm-card.alarm-widget.partial strong{color:var(--alarm)}
+.alarm-widget.active .alarm-rings,.alarm-widget.partial .alarm-rings{color:var(--alarm)}
+.alarm-widget.active .alarm-rings i,.alarm-widget.partial .alarm-rings i{width:58px;height:58px;animation:widget-alert-wave 3.2s ease-out infinite}
+.alarm-widget.active .alarm-rings i+i,.alarm-widget.partial .alarm-rings i+i{animation-delay:1.6s}
+:root[data-theme=light] .alarm-card.alarm-widget.active,:root[data-theme=light] .alarm-card.alarm-widget.partial{background-image:radial-gradient(circle at 50% 26%,#ffb7b354,transparent 68%),linear-gradient(140deg,#fff1f0d9,#ffffff9c)}
+@keyframes widget-alert-wave{0%{transform:scale(.8);opacity:.42}85%,100%{transform:scale(1.9);opacity:0}}
+@keyframes widget-idle-glow{0%,100%{box-shadow:inset 0 1px 0 #ffffff10,0 0 20px #8ce3c805}50%{box-shadow:inset 0 1px 0 #ffffff12,0 0 25px #8ce3c819}}
+@media(max-width:360px){.alarm-card.alarm-widget{width:200px;min-height:200px;padding:15px 16px;border-radius:27px}.alarm-card.alarm-widget strong{font-size:16px}.alarm-visual{height:60px}}
+
 </style>
 </head>
 <body>
@@ -302,11 +332,11 @@ async function refreshTelegram(){
 function airRaidCard(){
   const stale=(airRaidData?.fetchedAt&&Date.now()-Date.parse(airRaidData.fetchedAt)>90000)||(airRaidData?.sourceUpdatedAt&&Date.now()-Date.parse(airRaidData.sourceUpdatedAt)>120000);
   const state=stale?'unknown':airRaidData?.status;
-  const label=state==='active'?'🔴 Повітряна тривога':state==='partial'?'🔴 Тривога в частині області':state==='inactive'?(airRaidData?.coverage==='oblast-only'?'Обласну тривогу не зафіксовано':'Повітряної тривоги немає'):airRaidLoading&&!airRaidData?'Перевіряю статус тривоги…':'Статус тривоги недоступний';
-  const provider=airRaidData?.provider==='ubilling';
-
-  const signal=state==='active'||state==='partial'?'<path d="m12 3 10 18H2L12 3Z"/><path d="M12 9v5m0 3v.1"/>':state==='inactive'?'<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>':'<circle cx="12" cy="12" r="9"/><path d="M12 8v5m0 3v.1"/>';
-  return '<section id="air-raid-card" class="alarm-card '+(state==='active'?'active':state==='partial'?'partial':state==='inactive'?'inactive':'unknown')+'" aria-label="Статус повітряної тривоги"><div class="alarm-symbol" aria-hidden="true"><svg viewBox="0 0 24 24">'+signal+'</svg></div><div class="alarm-content"><strong>'+label.replace('🔴 ','')+'</strong><small>Хмельницька область'+(airRaidData?.fetchedAt?' · '+(stale?'Останні дані ':'Оновлено ')+clockFormat.format(new Date(airRaidData.sourceUpdatedAt||airRaidData.fetchedAt)):'')+'</small><a href="'+(provider?'https://ubilling.net.ua/aerialalerts/':'https://map.ukrainealarm.com/')+'" target="_blank" rel="noopener noreferrer">'+(provider?'Ubilling · обласний статус ↗':'Мапа «Повітряна тривога» ↗')+'</a></div></section>';
+  const active=state==='active'||state==='partial',provider=airRaidData?.provider==='ubilling';
+  const label=state==='active'?'Повітряна тривога':state==='partial'?'Тривога в частині області':state==='inactive'?(airRaidData?.coverage==='oblast-only'?'Обласної тривоги немає':'Повітряної тривоги немає'):airRaidLoading&&!airRaidData?'Перевіряю статус…':'Статус недоступний';
+  const signal=active?'<path d="M6 16V10a6 6 0 0 1 12 0v6l2 2H4l2-2Z"/><path d="M10 21h4M12 2v2"/>':state==='inactive'?'<path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6l-8-3Z"/><path d="M8 12h8"/>':'<circle cx="12" cy="12" r="8"/><path d="M12 7v6m0 3v.1"/>';
+  const updated=airRaidData?.fetchedAt?clockFormat.format(new Date(airRaidData.sourceUpdatedAt||airRaidData.fetchedAt)):'';
+  return '<section id="air-raid-card" class="alarm-card alarm-widget '+(state==='active'?'active':state==='partial'?'partial':state==='inactive'?'inactive':'unknown')+'" aria-label="Статус повітряної тривоги"><div class="alarm-widget-top"><span>Повітряна тривога</span><i aria-hidden="true"></i></div><div class="alarm-visual" aria-hidden="true"><div class="alarm-rings"><i></i><i></i></div><div class="alarm-symbol"><svg viewBox="0 0 24 24">'+signal+'</svg></div></div><div class="alarm-content"><strong>'+label+'</strong><small>Хмельницька область</small></div><div class="alarm-widget-bottom"><span>'+(stale?'Застаріло · ':updated?'Оновлено ':'')+updated+'</span><a href="'+(provider?'https://ubilling.net.ua/aerialalerts/':'https://map.ukrainealarm.com/')+'" target="_blank" rel="noopener noreferrer" aria-label="'+(provider?'Джерело статусу Ubilling':'Джерело Повітряна тривога')+'">'+(provider?'Ubilling':'Джерело')+' ↗</a></div></section>';
 }
 async function refreshAirRaid(){
   if(airRaidLoading)return;
