@@ -44,17 +44,23 @@ export function filterThreatPosts(posts, now = new Date()) {
   const ordered = [...posts].sort((a,b)=>a.publishedAt.localeCompare(b.publishedAt)||Number(a.id)-Number(b.id));
   const selected = [];
   let contextAt = -Infinity;
-  const cutoff = now.getTime() - 2 * 60 * 60 * 1000;
+  const cutoff = now.getTime() - 30 * 60 * 1000;
   for (const post of ordered) {
     const at = Date.parse(post.publishedAt);
     if (!Number.isFinite(at) || at < cutoff || at > now.getTime()+60000) continue;
     const text = post.text.toLocaleLowerCase('uk-UA');
     // A heuristic, not a verification of a threat or an official alarm status.
     const promo = /збір|донат|розіграш|ваканс|прода[єюм]|купити|реклам/.test(text.slice(0,180));
-    const news = /вчора|минуло[їг]|минулого|за минулу|за ніч|підсум|статистик|річниц|повідомлялося/.test(text);
+    const news = /вчора|минуло[їг]|минулого|за минулу|за ніч|підсум|статистик|річниц|повідомлялося|зеленськ|президент|міністр|за його словами|випробуємо|промислов|розроб[кц]|наступного року|наступного місяця|експорт/.test(text);
     if (promo || news) continue;
-    const threat = /шахед|shahed|бпла|бплa|безпілот|ракет|аеробаліст|кинджал|вибух|повітрян.{0,15}тривог|відбій|робот.{0,10}ппо|ппо працю|загроз|ціл[іьяю]/.test(text);
-    const movement = /летить|летять|проліта|пряму[єють]|руха[єють]|курсом|курс без змін|поверта[єють]|віддаля[єють]|наближа[єють]/.test(text);
+    const headline = text.split('\n\n')[0].trim();
+    const subject = /шахед|shahed|бпла|бплa|безпілот|ракет|аеробаліст|кинджал|ціл[іьяю]/.test(headline);
+    const movementWords = /летить|летять|проліта|пряму[єють]|руха[єють]|курсом|поверта[єють]|віддаля[єють]|наближа[єють]/.test(headline);
+    const location = /поблизу|над\s|в районі|у районі|в напрямку|у напрямку|за\s+\d+\s*км|на\s+\S+/.test(headline);
+    const alert = /повітрян.{0,15}тривог|відбій|загроза.{0,35}(баліст|ракет|бпла)|ппо працю|працює ппо|робота ппо/.test(headline);
+    const explosion = /^\s*[❗️‼️⚠️🔴\s]*(?:чути\s+)?вибух[и!\.\s]/.test(headline);
+    const threat = headline.length<=280 && (alert || explosion || (subject && (movementWords || location)));
+    const movement = headline.length<=200 && /летить курсо|летять курсо|курс без змін/.test(headline);
     const shortContext = text.length <= 240 && at-contextAt <= 10*60*1000 &&
       /без змін|над нами|в сторону|у бік|за\s+\d+\s*км|^[\s❗️⚠️🔴]*на\s/.test(text);
     if (threat || movement || shortContext) {
@@ -62,7 +68,7 @@ export function filterThreatPosts(posts, now = new Date()) {
       contextAt=at;
     }
   }
-  return {posts:selected.reverse(), filter:{region:'Хмельницька область', windowHours:2, inspected:posts.length, hidden:posts.length-selected.length, method:'keywords-and-context', officialAlarmConnected:false}};
+  return {posts:selected.reverse(), filter:{region:'Хмельницька область', windowMinutes:30, inspected:posts.length, hidden:posts.length-selected.length, method:'keywords-and-context', officialAlarmConnected:false}};
 }
 
 let telegramCache = null;
