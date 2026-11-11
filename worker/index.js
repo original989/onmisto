@@ -1,3 +1,4 @@
+import { loadSlavutaDiesel } from './fuel.js';
 import { loadAirRaid } from './alarm.js';
 import { loadTelegramFeed } from './telegram.js';
 import { sourceUrl, scheduleUrl, parseSchedules, parseEvents, parseQueues } from './parse.js';
@@ -42,6 +43,7 @@ export default {
     }
     if(url.pathname==='/')return new Response(page,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-cache','x-content-type-options':'nosniff','referrer-policy':'strict-origin-when-cross-origin'}});
     try {
+      if(url.pathname==='/api/fuel')return json(await loadSlavutaDiesel());
       if(url.pathname==='/api/air-raid')return json(await loadAirRaid(env));
       if(url.pathname==='/api/telegram')return json(await loadTelegramFeed());
       if(url.pathname==='/api/schedules')return await cached(request,120,async()=>parseSchedules(await fetchSource(new URL(scheduleUrl).pathname)),ctx);
