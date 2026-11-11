@@ -9,10 +9,10 @@ export function normalizeAd(value){
   if(value.enabled&&(!title||!link))throw new Error('Додайте заголовок і посилання.');
   return {enabled:value.enabled,title,description,link,image};
 }
-export async function loadAdvertisement(){
-  if(adsCache?.expires>Date.now())return adsCache.ad;
+export async function loadAdvertisement(revision){
+  if(!revision&&adsCache?.expires>Date.now())return adsCache.ad;
   try{
-    const r=await fetch(ADS_SOURCE+'?v='+Math.floor(Date.now()/60000),{signal:AbortSignal.timeout(6000),headers:{Accept:'application/json'}});
+    const r=await fetch(ADS_SOURCE+'?v='+(revision||Math.floor(Date.now()/60000)),{signal:AbortSignal.timeout(6000),headers:{Accept:'application/json'}});
     if(!r.ok)throw new Error('ads source');
     const raw=await r.text();if(raw.length>250000)throw new Error('ads size');
     const ad=normalizeAd(JSON.parse(raw));adsCache={ad,expires:Date.now()+60000};return ad;
