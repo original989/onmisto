@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normalizeAd,manageAdvertisement} from '../worker/ads.js';
+import {normalizeAd,manageAdvertisement,loadAdvertisement} from '../worker/ads.js';
 const valid={enabled:true,title:'Доставка квітів',description:'Славута',link:'https://example.com',image:''};
 test('advertisement validates content and keeps off switch',()=>{assert.deepEqual(normalizeAd(valid),valid);assert.equal(normalizeAd({...valid,enabled:false,title:'',link:''}).enabled,false)});
 test('rejects executable links, credentials, remote image and oversized content',()=>{for(const link of ['javascript:alert(1)','http://example.com','https://a:b@example.com'])assert.throws(()=>normalizeAd({...valid,link}));for(const image of ['https://tracker.example/a.png','data:image/svg+xml;base64,PHN2Zz4='])assert.throws(()=>normalizeAd({...valid,image}));assert.throws(()=>normalizeAd({...valid,title:'x'.repeat(91)}));assert.throws(()=>normalizeAd({...valid,title:''}));assert.throws(()=>normalizeAd({...valid,enabled:'false'}));});
@@ -20,3 +20,5 @@ test('management rejects unsigned and cross-origin writes; proxies only fixed va
     const bad=await manageAdvertisement(new Request(url,{method:'PUT',headers:{authorization:auth},body:JSON.stringify({sha:'a'.repeat(40),ad:{...valid,link:'javascript:alert(1)'}})}));assert.equal(bad.status,400);
   }finally{globalThis.fetch=old}
 });
+
+test('publication verification bypasses an older cached banner',async()=>{const old=globalThis.fetch;let ad={...valid,title:'Old'};let calls=0;globalThis.fetch=async()=>{calls++;return new Response(JSON.stringify(ad))};try{const first=await loadAdvertisement('a'.repeat(40));assert.equal(first.title,'Old');ad={...valid,title:'New'};assert.equal((await loadAdvertisement()).title,'Old');assert.equal((await loadAdvertisement('b'.repeat(40))).title,'New');assert.equal(calls,2)}finally{globalThis.fetch=old}});
