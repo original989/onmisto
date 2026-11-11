@@ -1,3 +1,4 @@
+import { loadTelegramFeed } from './telegram.js';
 import { sourceUrl, scheduleUrl, parseSchedules, parseEvents, parseQueues } from './parse.js';
 
 const responseHeaders = {'content-type':'application/json; charset=utf-8', 'cache-control':'no-store', 'x-content-type-options':'nosniff'};
@@ -39,6 +40,7 @@ export default {
     }
     if(url.pathname==='/')return new Response(page,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-cache','x-content-type-options':'nosniff','referrer-policy':'strict-origin-when-cross-origin'}});
     try {
+      if(url.pathname==='/api/telegram')return json(await loadTelegramFeed());
       if(url.pathname==='/api/schedules')return await cached(request,120,async()=>parseSchedules(await fetchSource(new URL(scheduleUrl).pathname)),ctx);
       if(url.pathname==='/api/settlements'||url.pathname==='/api/streets'){
         const term=(url.searchParams.get('term')||'').trim();

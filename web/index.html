@@ -44,6 +44,7 @@ button{touch-action:manipulation}
 .install-guide li svg{display:inline-block;width:15px;height:18px;vertical-align:middle;color:var(--accent)}
 .field input,.field select,.row input{font-size:16px}
 @media(display-mode:standalone){.shell{padding-top:calc(12px + env(safe-area-inset-top));padding-bottom:calc(16px + env(safe-area-inset-bottom))}}
+.app-tabs{display:flex;gap:8px}.app-tabs button{flex:1;padding:12px;border:1px solid var(--line);border-radius:13px;background:var(--panel);font-weight:650}.app-tabs button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}.safety-feed{display:grid;gap:14px}.safety-head{display:flex;gap:12px;justify-content:space-between;align-items:start}.safety-head h1{font-size:26px;margin:0;letter-spacing:-.7px}.safety-head p{margin:4px 0 0}.feed-post{padding:18px;background:var(--panel);border:1px solid var(--line);border-radius:18px}.feed-post time{display:block;color:var(--dim);font-size:12px;margin-bottom:10px}.feed-post p{font-size:15px;white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 12px}.feed-post a{font-size:12px}.feed-age{display:block;color:var(--off-ink);font-size:11px;margin-bottom:8px}.feed-meta{font-size:11px;color:var(--dim);margin:0}.safety-feed .notice a{color:inherit}
 </style>
 </head>
 <body>
@@ -81,6 +82,10 @@ let schedule=null;
 let selectedDate=null;
 let refreshing=false;
 let sourceError='';
+let pageMode='light';
+let telegramData=null;
+let telegramError='';
+let telegramLoading=false;
 let lookup=null;
 const addressData=new Map();
 const addressErrors=new Map();
@@ -171,12 +176,32 @@ function installHelp(){
 function addActions(){
   return '<div class="add-actions"><button class="wide primary" type="button" data-action="add">'+icon('plus')+'Додати адресу</button><button class="wide" type="button" data-action="queue">Знаю свою підчергу</button></div>';
 }
+function telegramTime(value){return new Intl.DateTimeFormat('uk-UA',{timeZone:'Europe/Kyiv',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(value))}
+function securityFeed(){
+  const oldFetch=telegramData&&Date.now()-Date.parse(telegramData.fetchedAt)>90000;
+  let body='<section class="safety-feed" aria-label="Повідомлення каналу"><div class="safety-head"><div><p class="eyebrow">Старокостянтинів та область</p><h1>Повідомлення каналу</h1><p class="muted">Старокостянтинів 24/7 · неофіційне джерело</p></div><button class="icon-button" data-action="telegram-refresh" aria-label="Оновити повідомлення" '+(telegramLoading?'disabled':'')+'>'+icon('refresh')+'</button></div><p class="notice">Це дописи каналу, а не підтвердження поточної загрози чи відбою. Орієнтуйся на офіційні сповіщення. Можливі затримки та пропуски повідомлень.</p>';
+  if(telegramError)body+='<p class="notice" role="status">Стрічка недоступна. '+(telegramData?'Нижче — попередньо отримані дописи. ':'')+'<a href="https://t.me/starkon_24_7" target="_blank" rel="noopener noreferrer">Відкрити канал ↗</a></p>';
+  else if(telegramLoading&&!telegramData)body+='<p class="muted" role="status">Отримую повідомлення…</p>';
+  if(telegramData){
+    body+='<p class="feed-meta">Останнє успішне отримання: '+telegramTime(telegramData.fetchedAt)+(oldFetch?' · дані не оновлювалися понад 90 секунд':'')+'. Час за Києвом.</p>';
+    body+=telegramData.posts.map(post=>{const older=Date.now()-Date.parse(post.publishedAt)>900000;return '<article class="feed-post"><time datetime="'+escapeHtml(post.publishedAt)+'">'+telegramTime(post.publishedAt)+'</time>'+(older?'<span class="feed-age">Опубліковано понад 15 хв тому</span>':'')+'<p>'+escapeHtml(post.text)+'</p>'+(post.truncated?'<p class="muted">Скорочений допис. Повний текст у Telegram.</p>':'')+'<a href="'+escapeHtml(post.url)+'" target="_blank" rel="noopener noreferrer">Старокостянтинів 24/7 · оригінал ↗</a></article>'}).join('');
+  }
+  return body+'</section>';
+}
+async function refreshTelegram(){
+  if(telegramLoading)return;
+  telegramLoading=true;render();
+  try{const data=await api('/api/telegram');if(!Array.isArray(data.posts)||!data.posts.length)throw new Error('Стрічка недоступна.');telegramData=data;telegramError=''}catch(error){telegramError=error.message}
+  finally{telegramLoading=false;render()}
+}
 function home(){
   const header='<header><div class="brand">'+brand()+'</div><div class="header-actions">'+installButton()+'<button class="icon-button theme" type="button" data-action="theme" aria-label="Змінити тему">'+icon(document.documentElement.dataset.theme==='light'?'moon':'sun')+'</button></div></header>';
   const intro='<div class="page-intro"><div><p class="eyebrow">Твій щоденний орієнтир</p><h1>Мої адреси</h1></div><div class="today-date">Сьогодні<strong>'+dayLabel(today())+'</strong></div></div>';
   const welcome='<section class="welcome"><div class="welcome-art">'+icon('power')+'</div><p class="eyebrow">Менше невідомості у твоєму дні</p><h1>Плануй день<br><em>зі світлом.</em></h1><p>Коли заряджати, працювати й робити паузу. Додай адресу — і графік твого будинку завжди під рукою.</p>'+addActions()+'</section><div class="empty-tip">'+icon('check')+'<p><strong>З офіційного джерела</strong>Погодинні графіки та окремі відключення за будинком з сайту обленерго.</p></div>';
-  const content=addresses.length?intro+'<section class="cards" aria-label="Мої адреси">'+addresses.map(card).join('')+'</section>'+addActions():welcome;
-  return header+content+'<footer>'+(installed()?'':'<button class="install-link" type="button" data-action="install">'+icon('install')+'Додати onmisto на екран iPhone</button>')+sourceInfo()+'<p class="footer-note">Автооновлення кожні 5 хв, поки сторінка відкрита. Час за Києвом.<br>Показано плановий графік. Фактичне живлення може відрізнятися.</p></footer>';
+  const content=pageMode==='safety'?securityFeed():addresses.length?intro+'<section class="cards" aria-label="Мої адреси">'+addresses.map(card).join('')+'</section>'+addActions():welcome;
+  const navigation='<nav class="app-tabs" aria-label="Розділи"><button data-action="light-tab" aria-pressed="'+(pageMode==='light')+'">Світло</button><button data-action="safety-tab" aria-pressed="'+(pageMode==='safety')+'">Безпека</button></nav>';
+  if(pageMode==='safety')return header+navigation+content+'<footer><p class="footer-note">Перевірка нових дописів щохвилини, поки цей розділ відкритий. Фото й відео дивись у Telegram. Положення цілей та статус безпеки не визначаються.</p></footer>';
+  return header+navigation+content+'<footer>'+(installed()?'':'<button class="install-link" type="button" data-action="install">'+icon('install')+'Додати onmisto на екран iPhone</button>')+sourceInfo()+'<p class="footer-note">Автооновлення кожні 5 хв, поки сторінка відкрита. Час за Києвом.<br>Показано плановий графік. Фактичне живлення може відрізнятися.</p></footer>';
 }
 function hourCell(hour,outages,date){
   const start=hour*60,end=start+60;
@@ -322,6 +347,9 @@ document.addEventListener('click',async event=>{
   const button=event.target.closest('[data-action]');if(!button)return;
   const {action,id}=button.dataset;
   switch(action){
+    case 'light-tab':pageMode='light';render();break;
+    case 'safety-tab':pageMode='safety';render();await refreshTelegram();break;
+    case 'telegram-refresh':await refreshTelegram();break;
     case 'detail':showAddress(id);break;
     case 'back':showAddress(null);break;
     case 'date':selectedDate=button.dataset.date;render();break;
@@ -371,7 +399,8 @@ app.addEventListener('touchstart',event=>{if(event.target.closest('#hours'))swip
 app.addEventListener('touchcancel',()=>{swipeStart=null},{passive:true});
 app.addEventListener('touchend',event=>{if(!swipeStart)return;const end=event.changedTouches[0],dx=end.clientX-swipeStart.clientX,dy=end.clientY-swipeStart.clientY;swipeStart=null;if(Math.abs(dx)<55||Math.abs(dx)<Math.abs(dy)*1.5)return;const index=addresses.findIndex(item=>item.id===selected),next=addresses[index+(dx<0?1:-1)];if(next)showAddress(next.id)},{passive:true});
 setInterval(()=>{if(!document.hidden)refresh()},300000);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh()});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){refresh();if(pageMode==='safety')refreshTelegram()}});
+setInterval(()=>{if(!document.hidden&&pageMode==='safety'&&!selected)refreshTelegram()},60000);
 setInterval(()=>{const minute=currentLocal();if(minute===lastMinute)return;lastMinute=minute;if(!dialog.open&&!['INPUT','SELECT'].includes(document.activeElement?.tagName)){if(schedule&&schedule.today!==today())refresh();else render()}},10000);
 setInterval(()=>{app.querySelectorAll('[data-next]').forEach(el=>el.textContent=countdown(Number(el.dataset.next)))},1000);
 render();refresh();
