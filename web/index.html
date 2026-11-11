@@ -144,6 +144,11 @@ dialog[open]{animation:dialog-arrive 220ms cubic-bezier(.2,.8,.2,1)}
 @media(max-width:360px){.widgets-row{gap:9px}.widgets-row .alarm-card.alarm-widget,.fuel-widget{padding:12px;border-radius:23px}.widgets-row .alarm-card.alarm-widget strong{font-size:13px}.widgets-row .alarm-visual{height:44px}.fuel-price-number{font-size:28px}.widgets-row .alarm-widget-bottom{font-size:7px}}
 @media(min-width:600px){.widgets-row .alarm-card.alarm-widget,.fuel-widget{padding:18px}.widgets-row .alarm-card.alarm-widget strong{font-size:17px}.widgets-row .alarm-visual{height:67px}.fuel-widget-place strong{font-size:14px}.fuel-widget-top strong{font-size:21px}.fuel-widget-price{gap:4px}.fuel-price-number{font-size:43px}}
 
+
+.fuel-next{font-size:8px;color:var(--dim);padding:5px 0 5px 5px;text-align:right;max-width:74%;overflow-wrap:anywhere;line-height:1.2;min-height:26px}
+.fuel-delta{font-size:8px;line-height:1.4;color:var(--dim);margin-top:4px;min-height:12px}.fuel-delta.down{color:var(--accent)}.fuel-delta.up{color:var(--alarm)}.fuel-delta.same{color:var(--dim)}.fuel-widget-price{animation:fuel-slide-in 200ms ease-out}
+@keyframes fuel-slide-in{from{opacity:.55;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+
 </style>
 </head>
 <body>
@@ -191,6 +196,7 @@ let refreshing=false;
 let sourceError='';
 let pageMode='light';
 let fuelData=null;
+let fuelIndex=0;
 let fuelLoading=false;
 let fuelError='';
 let airRaidData=null;
@@ -353,30 +359,45 @@ async function refreshTelegram(){
   finally{telegramLoading=false;render()}
 }
 
-function fuelWidget(){
-  const price=fuelData?Number(fuelData.price).toFixed(2).replace('.',','):'—';
-  const date=fuelData?new Intl.DateTimeFormat('uk-UA',{timeZone:'Europe/Kyiv',day:'2-digit',month:'2-digit'}).format(new Date(fuelData.publishedDate+'T12:00:00Z')):'';
-  return '<section id="fuel-widget" class="fuel-widget" aria-label="Ціна дизеля UPG у Славуті"><div class="fuel-widget-top"><strong>UPG</strong><span>Дизель</span></div><div class="fuel-widget-price"><span class="fuel-price-number">'+price+'</span><span class="fuel-price-unit">грн / літр · EURO DIESEL</span></div><div class="fuel-widget-place"><strong>Славута</strong><span>Приміська, 2-Г</span></div><div class="fuel-widget-bottom"><span>'+(fuelError?(fuelData?'Попередня ціна':'Не оновилось'):date?'Ціна від '+date:fuelLoading?'Оновлюю…':'')+'</span><button class="text-button" data-action="fuel-info" aria-label="Деталі ціни дизеля">Деталі ↗</button></div></section>';
+
+function displayedFuel(){return fuelData?.fuels?.[fuelIndex%(fuelData?.fuels?.length||1)]||null}
+function fuelChangeText(item){
+  if(!item||item.changeCents==null)return 'Немає ціни за вчора';
+  if(item.changeCents===0)return 'Без змін за добу';
+  return (item.changeCents>0?'+':'−')+(Math.abs(item.changeCents)/100).toFixed(2).replace('.',',')+' грн до вчора';
 }
-function topWidgets(){return '<div class="widgets-row" aria-label="Статус тривоги та ціна пального">'+airRaidCard()+fuelWidget()+'</div>'}
+function fuelWidget(){
+  const item=displayedFuel(),price=item?item.price.toFixed(2).replace('.',','):'—';
+  const date=fuelData?new Intl.DateTimeFormat('uk-UA',{timeZone:'Europe/Kyiv',day:'2-digit',month:'2-digit'}).format(new Date(fuelData.publishedDate+'T12:00:00Z')):'';
+  const delta=item?.changeCents;
+  const badge=delta==null?'unknown':delta<0?'down':delta>0?'up':'same';
+  return '<section id="fuel-widget" class="fuel-widget" aria-label="Ціни пального UPG у Славуті"><div class="fuel-widget-top"><strong>UPG</strong><button type="button" class="fuel-next" data-action="fuel-next" aria-label="Наступний вид пального">'+(item?escapeHtml(item.name):'Пальне')+' ›</button></div><div class="fuel-widget-price"><span class="fuel-price-number">'+price+'</span><span class="fuel-price-unit">грн / літр</span><span class="fuel-delta '+badge+'">'+fuelChangeText(item)+'</span></div><div class="fuel-widget-place"><strong>Славута</strong><span>Приміська, 2-Г</span></div><div class="fuel-widget-bottom"><span>'+(fuelError?(fuelData?'Попередня ціна':'Не оновилось'):date?'Ціна від '+date:fuelLoading?'Оновлюю…':'')+'</span><button class="text-button" data-action="fuel-info" aria-label="Усі ціни пального">Усі ціни ↗</button></div></section>';
+}
+function topWidgets(){return '<div class="widgets-row" aria-label="Статус тривоги та ціни пального">'+airRaidCard()+fuelWidget()+'</div>'}
+function redrawFuelWidget(){
+  const widget=document.querySelector('#fuel-widget');if(widget)widget.outerHTML=fuelWidget();
+}
+function nextFuel(){
+  if(!fuelData?.fuels?.length)return;
+  fuelIndex=(fuelIndex+1)%fuelData.fuels.length;redrawFuelWidget();
+}
 async function refreshFuel(){
   if(fuelLoading)return;
   fuelLoading=true;
   try{
     const data=await api('/api/fuel');
-    if(typeof data.price!=='number'||!Number.isFinite(data.price)||data.price<=0||typeof data.publishedDate!=='string'||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(data.publishedDate))throw new Error('Ціна недоступна');
-    fuelData=data;fuelError='';
+    if(!Array.isArray(data.fuels)||!data.fuels.length||!data.fuels.every(item=>typeof item.name==='string'&&typeof item.price==='number'&&Number.isFinite(item.price)&&item.price>0&&(item.changeCents==null||Number.isInteger(item.changeCents)))||typeof data.publishedDate!=='string'||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(data.publishedDate))throw new Error('Ціни недоступні');
+    const currentId=displayedFuel()?.id||5;fuelData=data;fuelIndex=Math.max(0,data.fuels.findIndex(item=>item.id===currentId));fuelError='';
   }catch(error){fuelError=error.message}
-  finally{fuelLoading=false;const widget=document.querySelector('#fuel-widget');if(widget)widget.outerHTML=fuelWidget()}
+  finally{fuelLoading=false;redrawFuelWidget()}
 }
 function showFuelInfo(){
-  let body='<p class="muted">Звичайний EURO DIESEL · UPG у Славуті, вул. Приміська, 2-Г (АЗК №502).</p>';
-  if(fuelData)body+='<div class="glass"><div class="event"><strong>'+fuelData.price.toFixed(2).replace('.',',')+' грн / літр</strong><span>Дата ціни на сайті UPG: '+escapeHtml(fuelData.publishedDate)+'</span><span class="sub">Перевірено '+telegramTime(fuelData.fetchedAt)+'</span></div></div>';
-  if(fuelError)body+='<p class="notice">Не вдалося оновити ціну.'+(fuelData?' Показано попередньо отримані дані.':'')+'</p>';
-  body+='<p class="muted">Ціна з офіційної карти конкретної АЗК. Знижки програми лояльності не враховано.</p><p><a href="https://upg.ua/merezha_azk/" target="_blank" rel="noopener noreferrer">Джерело: карта UPG ↗</a></p><button class="wide primary" data-action="fuel-refresh" '+(fuelLoading?'disabled':'')+'>Оновити ціну</button>';
-  openDialog('Дизель · UPG Славута',body);
+  let body='<p class="muted">UPG у Славуті, вул. Приміська, 2-Г (АЗК №502).</p>';
+  if(fuelData)body+='<div class="glass">'+fuelData.fuels.map(item=>'<div class="event"><strong>'+escapeHtml(item.name)+' · '+item.price.toFixed(2).replace('.',',')+' грн / літр</strong><span>'+fuelChangeText(item)+'</span></div>').join('')+'</div><p class="muted">Дата ціни UPG: '+escapeHtml(fuelData.publishedDate)+' · перевірено '+telegramTime(fuelData.fetchedAt)+'.</p>'+(fuelData.previousObservedAt?'<p class="muted">Порівняно з останньою збереженою ціною за попередній календарний день: '+telegramTime(fuelData.previousObservedAt)+'.</p>':'<p class="muted">Історія почала збиратися після додавання цієї функції. Якщо знімка за вчора немає, зміна ціни не розраховується.</p>');
+  if(fuelError)body+='<p class="notice">Не вдалося оновити ціни.'+(fuelData?' Показано попередньо отримані дані.':'')+'</p>';
+  body+='<p class="muted">Дані конкретної АЗК з офіційної карти UPG, без знижок лояльності. Автоперемикання кожні 8 секунд; назву пального можна натиснути.</p><p><a href="https://upg.ua/merezha_azk/" target="_blank" rel="noopener noreferrer">Карта UPG ↗</a></p><button class="wide primary" data-action="fuel-refresh" '+(fuelLoading?'disabled':'')+'>Оновити ціни</button>';
+  openDialog('Пальне · UPG Славута',body);
 }
-
 function airRaidCard(){
   const stale=(airRaidData?.fetchedAt&&Date.now()-Date.parse(airRaidData.fetchedAt)>90000)||(airRaidData?.sourceUpdatedAt&&Date.now()-Date.parse(airRaidData.sourceUpdatedAt)>120000);
   const state=stale?'unknown':airRaidData?.status;
@@ -549,6 +570,7 @@ document.addEventListener('click',async event=>{
   switch(action){
     case 'schedule-changes':openScheduleChanges();break;
     case 'acknowledge-changes':scheduleChanges=[];scheduleChangedAt=null;persistScheduleSnapshot();dialog.close();render();break;
+    case 'fuel-next':nextFuel();break;
     case 'fuel-info':showFuelInfo();break;
     case 'fuel-refresh':await refreshFuel();showFuelInfo();break;
     case 'light-tab':pageMode='light';render();break;
@@ -625,6 +647,7 @@ window.addEventListener('online',()=>{refresh();refreshAirRaid();refreshFuel();i
 window.addEventListener('offline',()=>{airRaidData={status:'unknown'};fuelError='Немає інтернету';telegramError='Немає інтернету';render()});
 setInterval(()=>{if(!document.hidden)refreshAirRaid()},30000);
 setInterval(()=>{if(!document.hidden)refreshFuel()},900000);
+setInterval(()=>{if(!document.hidden&&!dialog.open&&!selected&&document.activeElement?.closest('#fuel-widget')==null)nextFuel()},8000);
 </script>
 </body>
 </html>
