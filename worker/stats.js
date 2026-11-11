@@ -8,7 +8,7 @@ const statsOwnerCache=new Map();
 async function statsOwner(auth){
   if(!/^Bearer [A-Za-z0-9_]{20,255}$/.test(auth))return false;
   const hash=await statsHash(auth);if(statsOwnerCache.get(hash)>Date.now())return true;
-  const r=await fetch('https://api.github.com/user',{headers:{Authorization:auth,Accept:'application/vnd.github+json','User-Agent':'onmisto-stats'},signal:AbortSignal.timeout(10000),redirect:'error'});
+  const r=await fetch('https://api.github.com/user',{headers:{Authorization:auth,Accept:'application/vnd.github+json','User-Agent':'onmisto-stats'},signal:AbortSignal.timeout(10000),redirect:'manual'});
   if(!r.ok)return false;const user=await r.json();if(user.login!=='original989')return false;
   if(statsOwnerCache.size>=20)statsOwnerCache.clear();statsOwnerCache.set(hash,Date.now()+60000);return true;
 }
