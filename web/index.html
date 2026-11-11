@@ -364,7 +364,7 @@ async function refreshFuel(){
   fuelLoading=true;
   try{
     const data=await api('/api/fuel');
-    if(typeof data.price!=='number'||!Number.isFinite(data.price)||data.price<=0||typeof data.publishedDate!=='string'||!/^\\d{4}-\\d{2}-\\d{2}$/.test(data.publishedDate))throw new Error('Ціна недоступна');
+    if(typeof data.price!=='number'||!Number.isFinite(data.price)||data.price<=0||typeof data.publishedDate!=='string'||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(data.publishedDate))throw new Error('Ціна недоступна');
     fuelData=data;fuelError='';
   }catch(error){fuelError=error.message}
   finally{fuelLoading=false;const widget=document.querySelector('#fuel-widget');if(widget)widget.outerHTML=fuelWidget()}
