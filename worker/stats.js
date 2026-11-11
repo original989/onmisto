@@ -1,6 +1,6 @@
 const statsHeaders={'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'};
 function statsReply(data,status=200){return new Response(JSON.stringify(data),{status,headers:statsHeaders})}
-export function statsDay(time=Date.now()){return new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Kyiv',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(time))}
+export function statsDay(time=Date.now()){const parts=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Kyiv',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(time)).map(p=>[p.type,p.value]));return parts.year+'-'+parts.month+'-'+parts.day}
 export function statsDayOffset(day,offset){return new Date(Date.parse(day+'T12:00:00Z')+offset*86400000).toISOString().slice(0,10)}
 async function statsHash(value){const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value));return Array.from(new Uint8Array(bytes),x=>x.toString(16).padStart(2,'0')).join('')}
 export function statsDevice(ua){return /iPad|Tablet|Android(?!.*Mobile)/i.test(ua)?'tablet':/iPhone|Android|Mobile/i.test(ua)?'mobile':'desktop'}
@@ -15,8 +15,10 @@ async function statsOwner(auth){
 export async function statsRoute(request,env){
   const url=new URL(request.url),origin=request.headers.get('origin');
   if(origin&&origin!==url.origin)return statsReply({error:'Запит з іншого сайту відхилено.'},403);
+  let stage='request';
   try{
     if(url.pathname==='/api/visit'){
+      if(request.method==='HEAD'){if(!env?.VISIT_STATS)return new Response(null,{status:503});stage='storage-health';const stub=env.VISIT_STATS.get(env.VISIT_STATS.idFromName('onmisto-visits-v1'));return await stub.fetch(new Request('https://stats/health'));}
       if(request.method!=='POST')return statsReply({error:'Метод не підтримується.'},405);
       if(origin!==url.origin)return statsReply({error:'Невірне джерело запиту.'},403);
       if(/bot|crawl|spider|preview|facebookexternalhit/i.test(request.headers.get('user-agent')||''))return new Response(null,{status:204,headers:{'cache-control':'no-store'}});
@@ -33,11 +35,13 @@ export async function statsRoute(request,env){
       return await stub.fetch(new Request('https://stats/record',{method:'POST',body:JSON.stringify({visitor,session,source,device:statsDevice(request.headers.get('user-agent')||'')})}));
     }
     if(request.method!=='GET')return statsReply({error:'Метод не підтримується.'},405);
+    stage='github-auth';
     if(!await statsOwner(request.headers.get('authorization')||''))return statsReply({error:'Статистика доступна лише власнику original989. Перевір ключ GitHub.'},403);
     if(!env?.VISIT_STATS)return statsReply({error:'Сховище статистики ще не підключене.'},503);
+    stage='storage-summary';
     const stub=env.VISIT_STATS.get(env.VISIT_STATS.idFromName('onmisto-visits-v1'));
     return await stub.fetch(new Request('https://stats/summary'));
-  }catch{return statsReply({error:'Статистика тимчасово недоступна. Спробуй оновити.'},503)}
+  }catch{return statsReply({error:stage==='github-auth'?'GitHub не відповів під час перевірки доступу. Спробуй оновити.':'Не вдалося прочитати сховище статистики. Спробуй оновити.',errorCode:stage},503)}
 }
 // Plain exported Durable Object class; receives only trusted, validated Worker requests.
 export class VisitStats {
@@ -59,6 +63,8 @@ export class VisitStats {
     const period=days=>{const from=statsDayOffset(day,1-days);return this.sql.exec('SELECT COUNT(*) AS visits,COUNT(DISTINCT visitor) AS visitors FROM visits WHERE day>=?',from).toArray()[0]};
     const daily=this.sql.exec('SELECT day,COUNT(*) AS visits,COUNT(DISTINCT visitor) AS visitors FROM visits WHERE day>=? GROUP BY day ORDER BY day',statsDayOffset(day,-13)).toArray();
     const chart=Array.from({length:14},(_,i)=>{const date=statsDayOffset(day,i-13);return daily.find(r=>r.day===date)||{day:date,visits:0,visitors:0}});
-    return statsReply({today:period(1),week:period(7),month:period(30),online:this.sql.exec('SELECT COUNT(DISTINCT visitor) AS n FROM visits WHERE last_seen>=?',now-300000).toArray()[0].n,chart,sources:this.sql.exec('SELECT source AS name,COUNT(*) AS visits FROM visits WHERE day>=? GROUP BY source ORDER BY visits DESC',statsDayOffset(day,-29)).toArray(),devices:this.sql.exec('SELECT device AS name,COUNT(*) AS visits FROM visits WHERE day>=? GROUP BY device ORDER BY visits DESC',statsDayOffset(day,-29)).toArray(),startedAt:this.sql.exec("SELECT value FROM stats_meta WHERE key='startedAt'").toArray()[0]?.value||null,updatedAt:new Date(now).toISOString(),timeZone:'Europe/Kyiv'});
+    const result={today:period(1),week:period(7),month:period(30),online:this.sql.exec('SELECT COUNT(DISTINCT visitor) AS n FROM visits WHERE last_seen>=?',now-300000).toArray()[0].n,chart,sources:this.sql.exec('SELECT source AS name,COUNT(*) AS visits FROM visits WHERE day>=? GROUP BY source ORDER BY visits DESC',statsDayOffset(day,-29)).toArray(),devices:this.sql.exec('SELECT device AS name,COUNT(*) AS visits FROM visits WHERE day>=? GROUP BY device ORDER BY visits DESC',statsDayOffset(day,-29)).toArray(),startedAt:this.sql.exec("SELECT value FROM stats_meta WHERE key='startedAt'").toArray()[0]?.value||null,updatedAt:new Date(now).toISOString(),timeZone:'Europe/Kyiv'};
+    if(new URL(request.url).pathname==='/health')return new Response(null,{status:204,headers:{'cache-control':'no-store'}});
+    return statsReply(result);
   }
 }
