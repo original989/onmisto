@@ -179,19 +179,21 @@ function addActions(){
 function telegramTime(value){return new Intl.DateTimeFormat('uk-UA',{timeZone:'Europe/Kyiv',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(value))}
 function securityFeed(){
   const oldFetch=telegramData&&Date.now()-Date.parse(telegramData.fetchedAt)>90000;
-  let body='<section class="safety-feed" aria-label="Повідомлення каналу"><div class="safety-head"><div><p class="eyebrow">Старокостянтинів та область</p><h1>Повідомлення каналу</h1><p class="muted">Старокостянтинів 24/7 · неофіційне джерело</p></div><button class="icon-button" data-action="telegram-refresh" aria-label="Оновити повідомлення" '+(telegramLoading?'disabled':'')+'>'+icon('refresh')+'</button></div><p class="notice">Це дописи каналу, а не підтвердження поточної загрози чи відбою. Орієнтуйся на офіційні сповіщення. Можливі затримки та пропуски повідомлень.</p>';
+  let body='<section class="safety-feed" aria-label="Повідомлення каналу"><div class="safety-head"><div><p class="eyebrow">Уся Хмельницька область</p><h1>Повітряні загрози</h1><p class="muted">Старокостянтинів 24/7 · неофіційне джерело</p></div><button class="icon-button" data-action="telegram-refresh" aria-label="Оновити повідомлення" '+(telegramLoading?'disabled':'')+'>'+icon('refresh')+'</button></div><p class="notice">Це дописи каналу, а не підтвердження поточної загрози чи відбою. Орієнтуйся на офіційні сповіщення. Можливі затримки та пропуски повідомлень.</p>';
   if(telegramError)body+='<p class="notice" role="status">Стрічка недоступна. '+(telegramData?'Нижче — попередньо отримані дописи. ':'')+'<a href="https://t.me/starkon_24_7" target="_blank" rel="noopener noreferrer">Відкрити канал ↗</a></p>';
   else if(telegramLoading&&!telegramData)body+='<p class="muted" role="status">Отримую повідомлення…</p>';
   if(telegramData){
+    body+='<p class="feed-meta">Тематичний фільтр за словами та контекстом · дописи за останні 2 години. Може пропускати повідомлення або помилково включати новини. Офіційний статус тривоги ще не підключений.</p>';
+    if(!telegramData.posts.length)body+='<div class="glass"><p class="muted">У доступних дописах за останні 2 години фільтр не знайшов повідомлень про повітряні загрози. Це не означає відсутності загрози або відбій. <a href="https://t.me/starkon_24_7" target="_blank" rel="noopener noreferrer">Перевірити канал ↗</a></p></div>';
     body+='<p class="feed-meta">Останнє успішне отримання: '+telegramTime(telegramData.fetchedAt)+(oldFetch?' · дані не оновлювалися понад 90 секунд':'')+'. Час за Києвом.</p>';
-    body+=telegramData.posts.map(post=>{const older=Date.now()-Date.parse(post.publishedAt)>900000;return '<article class="feed-post"><time datetime="'+escapeHtml(post.publishedAt)+'">'+telegramTime(post.publishedAt)+'</time>'+(older?'<span class="feed-age">Опубліковано понад 15 хв тому</span>':'')+'<p>'+escapeHtml(post.text)+'</p>'+(post.truncated?'<p class="muted">Скорочений допис. Повний текст у Telegram.</p>':'')+'<a href="'+escapeHtml(post.url)+'" target="_blank" rel="noopener noreferrer">Старокостянтинів 24/7 · оригінал ↗</a></article>'}).join('');
+    body+=telegramData.posts.map(post=>{const older=Date.now()-Date.parse(post.publishedAt)>900000;return '<article class="feed-post"><time datetime="'+escapeHtml(post.publishedAt)+'">'+telegramTime(post.publishedAt)+'</time>'+(older?'<span class="feed-age">Опубліковано понад 15 хв тому</span>':'')+(post.selection==='context'?'<span class="feed-age">Коротке продовження попереднього допису · перевір контекст у джерелі</span>':'')+'<p>'+escapeHtml(post.text)+'</p>'+(post.truncated?'<p class="muted">Скорочений допис. Повний текст у Telegram.</p>':'')+'<a href="'+escapeHtml(post.url)+'" target="_blank" rel="noopener noreferrer">Старокостянтинів 24/7 · оригінал ↗</a></article>'}).join('');
   }
   return body+'</section>';
 }
 async function refreshTelegram(){
   if(telegramLoading)return;
   telegramLoading=true;render();
-  try{const data=await api('/api/telegram');if(!Array.isArray(data.posts)||!data.posts.length)throw new Error('Стрічка недоступна.');telegramData=data;telegramError=''}catch(error){telegramError=error.message}
+  try{const data=await api('/api/telegram');if(!Array.isArray(data.posts))throw new Error('Стрічка недоступна.');telegramData=data;telegramError=''}catch(error){telegramError=error.message}
   finally{telegramLoading=false;render()}
 }
 function home(){
