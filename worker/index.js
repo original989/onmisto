@@ -34,6 +34,7 @@ export default {
   async fetch(request,env,ctx){
     const url=new URL(request.url);
     if(request.method!=='GET')return json({error:'Метод не підтримується.'},405);
+    if(url.pathname==='/sw.js')return new Response(serviceWorkerCode,{headers:{'content-type':'application/javascript; charset=utf-8','cache-control':'no-cache','service-worker-allowed':'/','x-content-type-options':'nosniff'}});
     if(url.pathname==='/manifest.webmanifest')return new Response(JSON.stringify(appManifest),{headers:{'content-type':'application/manifest+json; charset=utf-8','cache-control':'no-cache','x-content-type-options':'nosniff'}});
     if(appAssets[url.pathname]){
       const bytes=Uint8Array.from(atob(appAssets[url.pathname]),character=>character.charCodeAt(0));
