@@ -45,6 +45,7 @@ button{touch-action:manipulation}
 .field input,.field select,.row input{font-size:16px}
 @media(display-mode:standalone){.shell{padding-top:calc(12px + env(safe-area-inset-top));padding-bottom:calc(16px + env(safe-area-inset-bottom))}}
 .app-tabs{display:flex;gap:8px}.app-tabs button{flex:1;padding:12px;border:1px solid var(--line);border-radius:13px;background:var(--panel);font-weight:650}.app-tabs button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}.safety-feed{display:grid;gap:14px}.safety-head{display:flex;gap:12px;justify-content:space-between;align-items:start}.safety-head h1{font-size:26px;margin:0;letter-spacing:-.7px}.safety-head p{margin:4px 0 0}.feed-post{padding:18px;background:var(--panel);border:1px solid var(--line);border-radius:18px}.feed-post time{display:block;color:var(--dim);font-size:12px;margin-bottom:10px}.feed-post p{font-size:15px;white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 12px}.feed-post a{font-size:12px}.feed-age{display:block;color:var(--off-ink);font-size:11px;margin-bottom:8px}.feed-meta{font-size:11px;color:var(--dim);margin:0}.safety-feed .notice a{color:inherit}
+.alarm-card{padding:15px 17px;border:1px solid var(--line);border-radius:16px;background:var(--panel);display:grid;gap:4px}.alarm-card strong{font-size:15px}.alarm-card small{font-size:11px;color:var(--dim)}.alarm-card a{font-size:11px;justify-self:start}.alarm-card.active,.alarm-card.partial{border-color:#df857c;background:var(--off)}.alarm-card.active strong,.alarm-card.partial strong{color:var(--off-ink)}
 </style>
 </head>
 <body>
@@ -83,6 +84,8 @@ let selectedDate=null;
 let refreshing=false;
 let sourceError='';
 let pageMode='light';
+let airRaidData=null;
+let airRaidLoading=false;
 let telegramData=null;
 let telegramError='';
 let telegramLoading=false;
@@ -196,14 +199,26 @@ async function refreshTelegram(){
   try{const data=await api('/api/telegram');if(!Array.isArray(data.posts))throw new Error('Стрічка недоступна.');telegramData=data;telegramError=''}catch(error){telegramError=error.message}
   finally{telegramLoading=false;render()}
 }
+function airRaidCard(){
+  const stale=airRaidData?.fetchedAt&&Date.now()-Date.parse(airRaidData.fetchedAt)>90000;
+  const state=stale?'unknown':airRaidData?.status;
+  const label=state==='active'?'🔴 Повітряна тривога':state==='partial'?'🔴 Тривога в частині області':state==='inactive'?'Повітряної тривоги немає':airRaidLoading&&!airRaidData?'Перевіряю статус тривоги…':'Статус тривоги недоступний';
+  return '<section id="air-raid-card" class="alarm-card '+(state==='active'?'active':state==='partial'?'partial':'')+'" aria-label="Статус повітряної тривоги"><strong>'+label+'</strong><small>Хмельницька область'+(airRaidData?.fetchedAt?' · '+(stale?'Останні дані ':'Оновлено ')+clockFormat.format(new Date(airRaidData.fetchedAt)):'')+'</small><a href="https://map.ukrainealarm.com/" target="_blank" rel="noopener noreferrer">Мапа «Повітряна тривога» ↗</a></section>';
+}
+async function refreshAirRaid(){
+  if(airRaidLoading)return;
+  airRaidLoading=true;
+  try{airRaidData=await api('/api/air-raid')}catch{airRaidData={status:'unknown'}}
+  finally{airRaidLoading=false;const card=document.querySelector('#air-raid-card');if(card)card.outerHTML=airRaidCard()}
+}
 function home(){
   const header='<header><div class="brand">'+brand()+'</div><div class="header-actions">'+installButton()+'<button class="icon-button theme" type="button" data-action="theme" aria-label="Змінити тему">'+icon(document.documentElement.dataset.theme==='light'?'moon':'sun')+'</button></div></header>';
   const intro='<div class="page-intro"><div><p class="eyebrow">Твій щоденний орієнтир</p><h1>Мої адреси</h1></div><div class="today-date">Сьогодні<strong>'+dayLabel(today())+'</strong></div></div>';
   const welcome='<section class="welcome"><div class="welcome-art">'+icon('power')+'</div><p class="eyebrow">Менше невідомості у твоєму дні</p><h1>Плануй день<br><em>зі світлом.</em></h1><p>Коли заряджати, працювати й робити паузу. Додай адресу — і графік твого будинку завжди під рукою.</p>'+addActions()+'</section><div class="empty-tip">'+icon('check')+'<p><strong>З офіційного джерела</strong>Погодинні графіки та окремі відключення за будинком з сайту обленерго.</p></div>';
   const content=pageMode==='safety'?securityFeed():addresses.length?intro+'<section class="cards" aria-label="Мої адреси">'+addresses.map(card).join('')+'</section>'+addActions():welcome;
   const navigation='<nav class="app-tabs" aria-label="Розділи"><button data-action="light-tab" aria-pressed="'+(pageMode==='light')+'">Світло</button><button data-action="safety-tab" aria-pressed="'+(pageMode==='safety')+'">Безпека</button></nav>';
-  if(pageMode==='safety')return header+navigation+content+'<footer><p class="footer-note">Орієнтуйся на офіційні сповіщення про тривогу.</p></footer>';
-  return header+navigation+content+'<footer>'+(installed()?'':'<button class="install-link" type="button" data-action="install">'+icon('install')+'Додати onmisto на екран iPhone</button>')+sourceInfo()+'<p class="footer-note">Автооновлення кожні 5 хв, поки сторінка відкрита. Час за Києвом.<br>Показано плановий графік. Фактичне живлення може відрізнятися.</p></footer>';
+  if(pageMode==='safety')return header+airRaidCard()+navigation+content+'<footer><p class="footer-note">Орієнтуйся на офіційні сповіщення про тривогу.</p></footer>';
+  return header+airRaidCard()+navigation+content+'<footer>'+(installed()?'':'<button class="install-link" type="button" data-action="install">'+icon('install')+'Додати onmisto на екран iPhone</button>')+sourceInfo()+'<p class="footer-note">Автооновлення кожні 5 хв, поки сторінка відкрита. Час за Києвом.<br>Показано плановий графік. Фактичне живлення може відрізнятися.</p></footer>';
 }
 function hourCell(hour,outages,date){
   const start=hour*60,end=start+60;
@@ -351,7 +366,7 @@ document.addEventListener('click',async event=>{
   switch(action){
     case 'light-tab':pageMode='light';render();break;
     case 'safety-tab':pageMode='safety';render();await refreshTelegram();break;
-    case 'safety-info':openDialog('Про стрічку','<p class="muted">Показуємо відібрані текстові дописи місцевого неофіційного каналу за останні 30 хвилин. Перевіряємо оновлення щохвилини, поки цей розділ відкритий.</p><p class="muted">Відбір за словами й контекстом може помилятися або пропускати повідомлення. Статус офіційної тривоги не підключений. Порожня стрічка не означає відбій або відсутність загрози. Час за Києвом.</p><button class="wide primary" data-action="close">Зрозуміло</button>');break;
+    case 'safety-info':openDialog('Про стрічку','<p class="muted">Показуємо відібрані текстові дописи місцевого неофіційного каналу за останні 30 хвилин. Перевіряємо оновлення щохвилини, поки цей розділ відкритий.</p><p class="muted">Відбір за словами й контекстом може помилятися або пропускати повідомлення. Статус тривоги показано в окремій картці, якщо офіційне джерело підключене. Якщо джерело недоступне або дані застарілі, картка не показує відбій. Порожня стрічка не означає відбій або відсутність загрози. Час за Києвом.</p><button class="wide primary" data-action="close">Зрозуміло</button>');break;
     case 'telegram-refresh':await refreshTelegram();break;
     case 'detail':showAddress(id);break;
     case 'back':showAddress(null);break;
@@ -402,11 +417,12 @@ app.addEventListener('touchstart',event=>{if(event.target.closest('#hours'))swip
 app.addEventListener('touchcancel',()=>{swipeStart=null},{passive:true});
 app.addEventListener('touchend',event=>{if(!swipeStart)return;const end=event.changedTouches[0],dx=end.clientX-swipeStart.clientX,dy=end.clientY-swipeStart.clientY;swipeStart=null;if(Math.abs(dx)<55||Math.abs(dx)<Math.abs(dy)*1.5)return;const index=addresses.findIndex(item=>item.id===selected),next=addresses[index+(dx<0?1:-1)];if(next)showAddress(next.id)},{passive:true});
 setInterval(()=>{if(!document.hidden)refresh()},300000);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){refresh();if(pageMode==='safety')refreshTelegram()}});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){refresh();refreshAirRaid();if(pageMode==='safety')refreshTelegram()}});
 setInterval(()=>{if(!document.hidden&&pageMode==='safety'&&!selected)refreshTelegram()},60000);
 setInterval(()=>{const minute=currentLocal();if(minute===lastMinute)return;lastMinute=minute;if(!dialog.open&&!['INPUT','SELECT'].includes(document.activeElement?.tagName)){if(schedule&&schedule.today!==today())refresh();else render()}},10000);
 setInterval(()=>{app.querySelectorAll('[data-next]').forEach(el=>el.textContent=countdown(Number(el.dataset.next)))},1000);
-render();refresh();
+render();refresh();refreshAirRaid();
+setInterval(()=>{if(!document.hidden)refreshAirRaid()},30000);
 </script>
 </body>
 </html>
