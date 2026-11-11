@@ -24,10 +24,12 @@ test('bounds feed size and reports truncated posts',()=>{
 test('retries after failure, coalesces concurrent fetches and caches successful result',async()=>{
  const original=globalThis.fetch;let count=0;
  try{
- globalThis.fetch=async(url,options)=>{count++;assert.equal(url,'https://t.me/s/starkon_24_7');assert.equal(options.redirect,'error');return new Response('Unavailable',{status:503})};
+ globalThis.fetch=async(url,options)=>{count++;assert.equal(url,'https://t.me/s/starkon_24_7');assert.equal(options.redirect,'manual');return new Response('Unavailable',{status:503})};
+ await assert.rejects(loadTelegramFeed());
+ globalThis.fetch=async()=>{count++;return new Response('',{status:302,headers:{Location:'https://t.me/starkon_24_7'}})};
  await assert.rejects(loadTelegramFeed());
  globalThis.fetch=async()=>{count++;return new Response(page(post('1','test')))};
- const [a,b]=await Promise.all([loadTelegramFeed(),loadTelegramFeed()]);assert.deepEqual(a,b);assert.equal(count,2);
- await loadTelegramFeed();assert.equal(count,2);
+ const [a,b]=await Promise.all([loadTelegramFeed(),loadTelegramFeed()]);assert.deepEqual(a,b);assert.equal(count,3);
+ await loadTelegramFeed();assert.equal(count,3);
  }finally{globalThis.fetch=original}
 });
