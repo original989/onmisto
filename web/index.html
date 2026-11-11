@@ -393,9 +393,9 @@ async function refreshFuel(){
 }
 function showFuelInfo(){
   let body='<p class="muted">UPG у Славуті, вул. Приміська, 2-Г (АЗК №502).</p>';
-  if(fuelData)body+='<div class="glass">'+fuelData.fuels.map(item=>'<div class="event"><strong>'+escapeHtml(item.name)+' · '+item.price.toFixed(2).replace('.',',')+' грн / літр</strong><span>'+fuelChangeText(item)+'</span></div>').join('')+'</div><p class="muted">Дата ціни UPG: '+escapeHtml(fuelData.publishedDate)+' · перевірено '+telegramTime(fuelData.fetchedAt)+'.</p>'+(fuelData.previousObservedAt?'<p class="muted">Порівняно з останньою збереженою ціною за попередній календарний день: '+telegramTime(fuelData.previousObservedAt)+'.</p>':'<p class="muted">Історія почала збиратися після додавання цієї функції. Якщо знімка за вчора немає, зміна ціни не розраховується.</p>');
+  if(fuelData)body+='<div class="glass">'+fuelData.fuels.map(item=>'<div class="event"><strong>'+escapeHtml(item.name)+' · '+item.price.toFixed(2).replace('.',',')+' грн / літр</strong><span>'+fuelChangeText(item)+'</span></div>').join('')+'</div><p class="muted">Оновлено '+telegramTime(fuelData.fetchedAt)+'.</p>';
   if(fuelError)body+='<p class="notice">Не вдалося оновити ціни.'+(fuelData?' Показано попередньо отримані дані.':'')+'</p>';
-  body+='<p class="muted">Дані конкретної АЗК з офіційної карти UPG, без знижок лояльності. Автоперемикання кожні 8 секунд; назву пального можна натиснути.</p><p><a href="https://upg.ua/merezha_azk/" target="_blank" rel="noopener noreferrer">Карта UPG ↗</a></p><button class="wide primary" data-action="fuel-refresh" '+(fuelLoading?'disabled':'')+'>Оновити ціни</button>';
+  body+='<p><a href="https://upg.ua/merezha_azk/" target="_blank" rel="noopener noreferrer">Карта UPG ↗</a></p><button class="wide primary" data-action="fuel-refresh" '+(fuelLoading?'disabled':'')+'>Оновити ціни</button>';
   openDialog('Пальне · UPG Славута',body);
 }
 function airRaidCard(){
