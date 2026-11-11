@@ -92,12 +92,14 @@ dialog[open]{animation:dialog-arrive 220ms cubic-bezier(.2,.8,.2,1)}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}button:active:not(:disabled){transform:none}}
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.card,.welcome,.glass,.feed-post,.summary-stat,.outage-list,.icon-button,.wide,.date-tab,.address-tab,.search-results button,.alarm-card,header,dialog{background-color:var(--panel)}}
 
+.saved-banner,.change-banner{border:1px solid var(--glass-edge);background:var(--glass);border-radius:16px;padding:13px 16px;font-size:12px;line-height:1.6;margin:0}.saved-banner{color:var(--off-ink);background:var(--off)}.change-banner{display:flex;gap:14px;justify-content:space-between;align-items:center;border-color:#8cbcff66}.change-banner strong{font-size:13px}.change-banner .text-button{font-size:12px;flex:none}.hour.changed{outline:2px solid #8cbcff;outline-offset:-3px}.hour.changed::after{content:'';position:absolute;right:4px;top:4px;width:4px;height:4px;border-radius:50%;background:#8cbcff}.change-legend{font-size:10px;color:#8cbcff;margin:0}
 </style>
 </head>
 <body>
 <main class="shell" id="app"></main>
 <dialog id="dialog" aria-labelledby="dialog-title"></dialog>
 <script>
+/* SCHEDULE_STATE */
 const icons = {
   install:'<path d="M8 8H5v13h14V8h-3M12 15V2m-4 4 4-4 4 4"/>',
   power:'<path d="M12 2v9M6.3 5.8a8 8 0 1 0 11.4 0"/>',
@@ -125,7 +127,14 @@ const savedKey='zvitlo-hoe-addresses-v2';
 function readSaved(){try{const value=JSON.parse(localStorage.getItem(savedKey)||'[]');return Array.isArray(value)?value.filter(item=>item&&typeof item.id==='string'&&queues.includes(item.queue)):[]}catch{return []}}
 let addresses=readSaved();
 let selected=null;
-let schedule=null;
+function readScheduleSnapshot(){try{const value=JSON.parse(localStorage.getItem('onmisto-schedule-v1')||'null');return validSchedule(value?.schedule)?value:null}catch{return null}}
+const scheduleSnapshot=readScheduleSnapshot();
+let schedule=scheduleSnapshot?.schedule||null;
+let scheduleFromCache=!!schedule;
+let scheduleSaved=!!schedule;
+let offlineShellReady=false;
+let scheduleChanges=validScheduleChanges(scheduleSnapshot?.changes)?scheduleSnapshot.changes:[];
+let scheduleChangedAt=Number.isFinite(Date.parse(scheduleSnapshot?.changedAt))?scheduleSnapshot.changedAt:null;
 let selectedDate=null;
 let refreshing=false;
 let sourceError='';
@@ -138,6 +147,10 @@ let telegramLoading=false;
 let lookup=null;
 const addressData=new Map();
 const addressErrors=new Map();
+try{
+  const saved=JSON.parse(localStorage.getItem('onmisto-address-events-v1')||'{}');
+  for(const item of addresses){const data=saved[item.id];if(data&&Array.isArray(data.events)&&data.events.every(event=>['work','type','queue','emergencyQueue','start','end'].every(key=>typeof event[key]==='string'))&&Array.isArray(data.queues)&&data.queues.every(queue=>queues.includes(queue))&&Number.isFinite(Date.parse(data.fetchedAt))){addressData.set(item.id,data);addressErrors.set(item.id,'Збережені дані адреси. Очікуємо перевірку джерела.');}}
+}catch{}
 let formRevision=0;
 let lastMinute='';
 let swipeStart=null;
@@ -205,9 +218,49 @@ function card(item){
   const countdownText=current.next!=null?'<span class="countdown-label">'+changeLabel(current)+'</span><strong class="card-countdown" data-next="'+current.next+'">'+countdown(current.next)+'</strong>':'<strong class="card-countdown unknown">'+(known?'До кінця доби без змін':sourceError?'Спробуй оновити':'Очікуємо графік')+'</strong>';
   return '<article class="card"><button class="card-main" type="button" data-action="detail" data-id="'+escapeHtml(item.id)+'" aria-label="Графік за адресою '+escapeHtml(item.name)+'"><div class="card-top">'+addressLabel(item)+'<span class="queue-badge">'+item.queue+'</span></div><span class="state-pill '+(known?(current.off?'off':'lit'):'')+'"><i></i>'+current.label+'</span>'+countdownText+warning+timeline(item,today())+'<div class="card-bottom"><span>Погодинний графік</span>'+icon('arrow')+'</div></button></article>';
 }
+
+function persistScheduleSnapshot(){
+  if(!schedule)return;
+  try{localStorage.setItem('onmisto-schedule-v1',JSON.stringify({schedule,changes:scheduleChanges,changedAt:scheduleChangedAt}));scheduleSaved=true}catch{scheduleSaved=false}
+}
+function persistAddressSnapshots(){
+  try{localStorage.setItem('onmisto-address-events-v1',JSON.stringify(Object.fromEntries([...addressData].filter(([id])=>addresses.some(item=>item.id===id)))))}catch{}
+}
+function savedScheduleTime(){
+  return schedule?new Intl.DateTimeFormat('uk-UA',{timeZone:'Europe/Kyiv',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(schedule.fetchedAt)):'';
+}
+function savedScheduleBanner(){
+  if(!schedule)return navigator.onLine?'':'<p class="notice">Без інтернету. Збереженого графіка ще немає.</p>';
+  if(!navigator.onLine||scheduleFromCache||sourceError)return '<p class="saved-banner" role="status">'+(!navigator.onLine?'Без інтернету':sourceError?'Не вдалося оновити':'Перевіряю оновлення')+' · збережений графік від '+savedScheduleTime()+'.</p>';
+  return '';
+}
+function relevantScheduleChanges(queue,date){
+  return scheduleChanges.filter(change=>(!queue||change.queue===queue)&&(!date||change.date===date)&&change.date>=today());
+}
+function changesBanner(item){
+  const changes=relevantScheduleChanges(item?.queue,item?selectedDate||today():null).filter(change=>item||!addresses.length||addresses.some(address=>address.queue===change.queue));
+  if(!changes.length)return '';
+  const queuesChanged=[...new Set(changes.map(change=>change.queue))].join(', ');
+  return '<div class="change-banner"><div><strong>Обленерго змінило графік</strong><span class="sub">Підчерги '+escapeHtml(queuesChanged)+'</span></div><button class="text-button" data-action="schedule-changes">Що змінилось?</button></div>';
+}
+function openScheduleChanges(){
+  const changes=relevantScheduleChanges(selected?addresses.find(item=>item.id===selected)?.queue:null,selected?selectedDate||today():null);
+  const body=changes.map(change=>'<div class="event"><strong>'+dayLabel(change.date)+' · підчерга '+change.queue+'</strong>'+change.intervals.map(i=>'<span>'+time(i.start)+'–'+time(i.end)+' → '+(i.isOff?'додано відключення':'відключення прибрано')+'</span>').join('')+'</div>').join('');
+  openDialog('Зміни погодинного графіка','<div class="glass">'+body+'</div><p class="muted">Порівняно з попереднім графіком, завантаженим на цьому пристрої.</p><button class="wide primary" data-action="acknowledge-changes">Зрозуміло</button>');
+}
+async function setupOfflineShell(){
+  if(!('serviceWorker' in navigator))return;
+  try{
+    await navigator.serviceWorker.register('/sw.js',{scope:'/',updateViaCache:'none'});
+    await navigator.serviceWorker.ready;
+    offlineShellReady=true;
+    if(!dialog.open&&!['INPUT','SELECT'].includes(document.activeElement?.tagName))render();
+  }catch{}
+}
+
 function sourceInfo(){
   const updated=schedule?new Intl.DateTimeFormat('uk-UA',{timeZone:'Europe/Kyiv',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(schedule.fetchedAt)):'';
-  const label=updated?'Перевірено '+updated:sourceError?'Дані тимчасово недоступні':'Завантаження графіків…';
+  const label=updated?(scheduleFromCache||sourceError||!navigator.onLine?'Збережено ':'Перевірено ')+updated+(scheduleSaved&&offlineShellReady?' · доступний офлайн':!scheduleSaved?' · не вдалося зберегти':''):sourceError?'Дані тимчасово недоступні':'Завантаження графіків…';
   return '<div class="source-info"><div class="source-label"><a href="https://hoe.com.ua/page/pogodinni-vidkljuchennja" target="_blank" rel="noopener">Дані Хмельницькобленерго ↗</a><span>'+label+'</span></div><button type="button" data-action="refresh" '+(refreshing?'disabled':'')+'>'+icon('refresh')+(refreshing?'Оновлення…':'Оновити')+'</button></div>'+(sourceError?'<p class="notice" role="alert">'+escapeHtml(sourceError)+(schedule?' Показано попередньо завантажені дані.':'')+'</p>':'');
 }
 function brand(){
@@ -269,13 +322,14 @@ function home(){
   if(pageMode==='safety')return header+airRaidCard()+navigation+content+'<footer><p class="footer-note">Орієнтуйся на офіційні сповіщення про тривогу.</p></footer>';
   return header+airRaidCard()+navigation+content+'<footer>'+(installed()?'':'<button class="install-link" type="button" data-action="install">'+icon('install')+'Додати onmisto на екран iPhone</button>')+sourceInfo()+'<p class="footer-note">Автооновлення кожні 5 хв, поки сторінка відкрита. Час за Києвом.<br>Показано плановий графік. Фактичне живлення може відрізнятися.</p></footer>';
 }
-function hourCell(hour,outages,date){
+function hourCell(hour,outages,date,queue){
   const start=hour*60,end=start+60;
   const off=outages.reduce((sum,[from,to])=>sum+Math.max(0,Math.min(end,to)-Math.max(start,from)),0);
   const state=off===0?'on':off===60?'off':'partial';
+  const changed=relevantScheduleChanges(queue,date).some(change=>change.intervals.some(i=>i.start<end&&i.end>start));
   const current=date===today()&&Math.floor(nowMinutes()/60)===hour;
   const past=date<today()||(date===today()&&hour<Math.floor(nowMinutes()/60));
-  return '<span class="hour '+state+(past?' past':'')+(current?' now':'')+'" aria-label="'+time(start)+', '+(state==='on'?'за графіком є світло':state==='off'?'відключення':'часткове відключення')+(current?', зараз':'')+'">'+(state==='partial'?'':icon(state==='on'?'bolt':'off'))+time(start)+'</span>';
+  return '<span class="hour '+state+(past?' past':'')+(current?' now':'')+(changed?' changed':'')+'" aria-label="'+time(start)+', '+(state==='on'?'за графіком є світло':state==='off'?'відключення':'часткове відключення')+(current?', зараз':'')+(changed?', графік змінено':'')+'">'+(state==='partial'?'':icon(state==='on'?'bolt':'off'))+time(start)+'</span>';
 }
 function eventList(item){
   if(!item.streetId)return '';
@@ -305,13 +359,13 @@ function detail(item){
   const summary=outages?'<div class="day-summary"><div class="summary-stat available"><strong>'+String(24-totalOff).replace('.',',')+' год</strong>зі світлом за графіком</div><div class="summary-stat"><strong>'+String(totalOff).replace('.',',')+' год</strong>відключень за графіком</div></div>':'';
   const windows=outages?'<div class="outage-list"><p class="eyebrow">Години відключень</p><div class="intervals">'+(outages.length?outages.map(([from,to])=>'<span>'+time(from)+'–'+time(to)+'</span>').join(''):'У графіку немає відключень')+'</div></div>':'';
   const unavailable=!schedule&&!sourceError?'Завантажуємо погодинний графік…':sourceError&&!schedule?'Не вдалося завантажити графік. Спробуй оновити.':'На '+dayLabel(date)+' джерело ще не опублікувало погодинний графік. Перевір пізніше.';
-  const hours=outages?'<div class="grid" id="hours">'+Array.from({length:24},(_,hour)=>hourCell(hour,outages,date)).join('')+'</div><div class="legend"><span><i class="active"></i> є світло</span><span><i></i> відключення</span><span><i class="partial"></i> частково</span><span><i class="current"></i> зараз</span></div>'+windows:'<p class="notice">'+unavailable+'</p>';
+  const hours=outages?'<div class="grid" id="hours">'+Array.from({length:24},(_,hour)=>hourCell(hour,outages,date,item.queue)).join('')+'</div><div class="legend"><span><i class="active"></i> є світло</span><span><i></i> відключення</span><span><i class="partial"></i> частково</span><span><i class="current"></i> зараз</span></div>'+(relevantScheduleChanges(item.queue,date).length?'<p class="change-legend">Крапка й синя рамка — змінені години</p>':'')+windows:'<p class="notice">'+unavailable+'</p>';
   const options=addressData.get(item.id)?.queues;
   const header='<header><button class="icon-button" type="button" data-action="back" aria-label="До списку адрес">'+icon('back')+'</button><div class="detail-nav"><span class="brand-name">onmisto</span><span class="brand-region">Графік твого дня</span></div><button class="icon-button theme" type="button" data-action="theme" aria-label="Змінити тему">'+icon(document.documentElement.dataset.theme==='light'?'moon':'sun')+'</button></header>';
   const tabs=addresses.length>1?'<nav class="address-tabs" aria-label="Перемкнути адресу">'+addresses.map(address=>'<button class="address-tab" type="button" data-action="detail" data-id="'+escapeHtml(address.id)+'" aria-current="'+(address.id===item.id)+'">'+escapeHtml(address.name)+'</button>').join('')+'</nav>':'';
   const heading='<div class="detail-heading"><div><p class="eyebrow">Моя адреса</p><h1>'+escapeHtml(item.name)+'</h1><span class="sub">'+(item.streetId?escapeHtml(item.streetText)+', '+escapeHtml(item.house):'Хмельницька область')+'</span></div><span class="queue-badge">Підчерга '+item.queue+'</span></div>';
   const settings='<section class="settings-section"><h2 class="section-title">Налаштування адреси</h2><div class="glass"><label class="row">Назва<input aria-label="Назва адреси" data-field="name" maxlength="60" value="'+escapeHtml(item.name)+'"></label><div class="row"><span>Оператор</span><span>Хмельницькобленерго</span></div><label class="row">Підчерга<select data-field="queue">'+queueOptions(options?.length?[...new Set([item.queue,...options])]:queues,item.queue)+'</select></label>'+(item.streetId?'<p class="sub">'+escapeHtml(item.settlementText)+', '+escapeHtml(item.streetText)+', '+escapeHtml(item.house)+'</p>':'')+'</div><p class="muted">'+(item.streetId?'У сітці враховано відключення обраного приєднання.':'Для перевірки аварійних і планових робіт додай адресу будинку.')+'</p><button class="danger" type="button" data-action="remove" data-id="'+escapeHtml(item.id)+'">Видалити адресу</button></section>';
-  return header+tabs+heading+transitionPanel(item)+'<section class="schedule-section" aria-label="Графік світла"><h2 class="section-title">Графік на день</h2>'+dateTabs+summary+hours+'</section>'+eventList(item)+settings+'<footer>'+sourceInfo()+'<p class="footer-note">Час за Києвом. Фактичне живлення може відрізнятися від графіка.</p></footer>';
+  return header+savedScheduleBanner()+changesBanner(item)+tabs+heading+transitionPanel(item)+'<section class="schedule-section" aria-label="Графік світла"><h2 class="section-title">Графік на день</h2>'+dateTabs+summary+hours+'</section>'+eventList(item)+settings+'<footer>'+sourceInfo()+'<p class="footer-note">Час за Києвом. Фактичне живлення може відрізнятися від графіка.</p></footer>';
 }
 function render(){
   const item=addresses.find(item=>item.id===selected);
@@ -397,13 +451,13 @@ async function refreshAddress(item){
   try{
     const data=await api('/api/address?street='+encodeURIComponent(item.streetId)+'&house='+encodeURIComponent(item.house));
     if(!addresses.some(address=>address.id===item.id))return;
-    addressData.set(item.id,data);addressErrors.delete(item.id);
+    addressData.set(item.id,data);addressErrors.delete(item.id);persistAddressSnapshots();
   }catch(error){addressErrors.set(item.id,error.message)}
 }
 async function refresh(){
   if(refreshing)return;
   refreshing=true;render();
-  const tasks=[(async()=>{try{schedule=await api('/api/schedules');sourceError=''}catch(error){sourceError=error.message}render()})()];
+  const tasks=[(async()=>{try{const next=await api('/api/schedules');const changes=diffSchedules(schedule,next);if(changes.length){scheduleChanges=changes;scheduleChangedAt=next.fetchedAt}schedule=next;scheduleFromCache=false;sourceError='';persistScheduleSnapshot()}catch(error){sourceError=error.message}render()})()];
   // Sequential address batches keep the upstream request load bounded.
   tasks.push((async()=>{for(const item of [...addresses]){await refreshAddress(item)}})());
   await Promise.all(tasks);
@@ -413,6 +467,8 @@ document.addEventListener('click',async event=>{
   const button=event.target.closest('[data-action]');if(!button)return;
   const {action,id}=button.dataset;
   switch(action){
+    case 'schedule-changes':openScheduleChanges();break;
+    case 'acknowledge-changes':scheduleChanges=[];scheduleChangedAt=null;persistScheduleSnapshot();dialog.close();render();break;
     case 'light-tab':pageMode='light';render();break;
     case 'safety-tab':pageMode='safety';render();await refreshTelegram();break;
     case 'safety-info':openDialog('Про стрічку','<p class="muted">Показуємо відібрані текстові дописи місцевого неофіційного каналу за останні 30 хвилин. Перевіряємо оновлення щохвилини, поки цей розділ відкритий.</p><p class="muted">Відбір за словами й контекстом може помилятися або пропускати повідомлення. Статус тривоги показано в окремій картці з посиланням на джерело. Ubilling — сторонній сервіс, його обласний статус не підтверджує відсутності місцевих тривог. Якщо джерело недоступне або дані застарілі, картка не показує відбій. Порожня стрічка не означає відбій або відсутність загрози. Час за Києвом.</p><button class="wide primary" data-action="close">Зрозуміло</button>');break;
@@ -460,7 +516,7 @@ document.addEventListener('submit',async event=>{
     Object.assign(item,{settlementId:f.dataset.settlement,settlementText:f.dataset.settlementText,streetId:f.dataset.street,streetText:f.dataset.streetText,house:data.get('house')});
     addressData.set(item.id,lookup);
   }
-  addresses.push(item);persist();dialog.close();showAddress(item.id);
+  addresses.push(item);persist();persistAddressSnapshots();dialog.close();showAddress(item.id);
 });
 app.addEventListener('touchstart',event=>{if(event.target.closest('#hours'))swipeStart=event.changedTouches[0]},{passive:true});
 app.addEventListener('touchcancel',()=>{swipeStart=null},{passive:true});
@@ -482,7 +538,9 @@ document.addEventListener('pointerdown',event=>{
   button.append(wave);wave.addEventListener('animationend',()=>wave.remove(),{once:true});
 },{passive:true});
 
-render();refresh();refreshAirRaid();
+render();refresh();refreshAirRaid();setupOfflineShell();
+window.addEventListener('online',()=>{refresh();refreshAirRaid();if(pageMode==='safety')refreshTelegram()});
+window.addEventListener('offline',()=>{airRaidData={status:'unknown'};telegramError='Немає інтернету';render()});
 setInterval(()=>{if(!document.hidden)refreshAirRaid()},30000);
 </script>
 </body>
