@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {parseTelegramFeed,loadTelegramFeed,filterThreatPosts} from '../worker/telegram.js';
+import {parseTelegramFeed,loadTelegramFeed,telegramFeedState} from '../worker/telegram.js';
 const post=(id,text,datetime='2026-11-11T10:28:00+02:00')=>`<div data-post="starkon_24_7/${id}"><div class="tgme_widget_message_text js-message_text">${text}</div><a><time datetime="${datetime}"></time></a></div>`;
 const page=body=>'<div class="tgme_channel_history">'+body+'</div>';
 test('preserves literal text safely, nested markup, source URL and Kyiv time offset',()=>{
@@ -10,9 +10,9 @@ test('preserves literal text safely, nested markup, source URL and Kyiv time off
  assert.equal(data.posts[0].url,'https://t.me/starkon_24_7/43465');
  assert.equal(data.fetchedAt,'2026-11-11T11:00:00.000Z');
 });
-test('deduplicates and sorts newest first, skips media-only posts',()=>{
+test('deduplicates and sorts newest first, includes media-only posts',()=>{
  const data=parseTelegramFeed(page(post('1','old')+post('2','new','2026-11-11T11:00:00Z')+post('1','edited')+'<div data-post="starkon_24_7/3"><time datetime="2026-11-11T11:00:00Z"></time></div>'));
- assert.deepEqual(data.posts.map(p=>p.id),['2','1']);assert.equal(data.posts[1].text,'edited');
+ assert.deepEqual(data.posts.map(p=>p.id),['3','2','1']);assert.equal(data.posts[2].text,'edited');assert.equal(data.posts[0].hasMedia,true);
 });
 test('refuses login pages, empty feeds, broken markup and unknown dates',()=>{
  for(const html of ['<h1>Login</h1>',page(''),page(post('1','x','invalid')),page('<div data-post="starkon_24_7/1"><div class="tgme_widget_message_text">broken')])assert.throws(()=>parseTelegramFeed(html));
@@ -22,47 +22,24 @@ test('bounds feed size and reports truncated posts',()=>{
  assert.equal(data.posts.length,20);assert.equal(data.posts[0].text.length,12000);assert.equal(data.posts[0].truncated,true);
 });
 test('retries after failure, coalesces concurrent fetches and caches successful result',async()=>{
- const original=globalThis.fetch;let count=0;
+ const original=globalThis.fetch;let count=0;const alarm={status:'active',fetchedAt:new Date().toISOString()};
  try{
  globalThis.fetch=async(url,options)=>{count++;assert.equal(url,'https://t.me/s/starkon_24_7');assert.equal(options.redirect,'manual');return new Response('Unavailable',{status:503})};
- await assert.rejects(loadTelegramFeed());
+ await assert.rejects(loadTelegramFeed(alarm));
  globalThis.fetch=async()=>{count++;return new Response('',{status:302,headers:{Location:'https://t.me/starkon_24_7'}})};
- await assert.rejects(loadTelegramFeed());
- globalThis.fetch=async()=>{count++;return new Response(page(post('1','БпЛА летить на Хмельницький',new Date().toISOString())))};
- const [a,b]=await Promise.all([loadTelegramFeed(),loadTelegramFeed()]);assert.deepEqual(a,b);assert.equal(a.posts.length,1);assert.equal(count,3);
- await loadTelegramFeed();assert.equal(count,3);
+ await assert.rejects(loadTelegramFeed(alarm));
+ globalThis.fetch=async()=>{count++;return new Response(page(post('1','Звичайна новина і реклама',new Date().toISOString())+post('2','Коротке повідомлення без ключових слів',new Date().toISOString())))};
+ const [a,b]=await Promise.all([loadTelegramFeed(alarm),loadTelegramFeed(alarm)]);assert.deepEqual(a,b);assert.equal(a.posts.length,2);assert.ok(a.posts.some(p=>p.text.includes('реклама')));assert.equal(count,3);
+ await loadTelegramFeed(alarm);assert.equal(count,3);
  }finally{globalThis.fetch=original}
 });
 
-test('threat filter covers regional movement and short contextual updates, excludes advertising and retrospective news',()=>{
- const time='2026-11-11T10:00:00Z';const entries=[
-  ['1','Шахед поблизу Антоніни','10:00'],
-  ['2','Антоніни за 5 км','10:01'],
-  ['3','Летить курсом на Базалію/Волочиськ','10:02'],
-  ['4','Курс без змін — на Волочиськ','10:03'],
-  ['5','Збір на ППО. Донат','10:04'],
-  ['6','За минулу ніч збито ракети','10:05'],
-  ['7','Завтра відключення води','10:06'],
-  ['8','Відбій повітряної тривоги','10:07'],
-  ['9','На Хмельницький','10:45']
- ].map(([id,text,clock])=>({id,text,publishedAt:'2026-11-11T'+clock+':00Z'}));
- const result=filterThreatPosts(entries,new Date('2026-11-11T10:10:00Z'));
- assert.deepEqual(result.posts.map(p=>p.id),['8','4','3','2','1']);
- assert.equal(result.posts.find(p=>p.id==='2').selection,'context');
- assert.equal(result.filter.officialAlarmConnected,false);
+test('alarm gate only opens for fresh active or partial alerts',()=>{
+ const now=new Date('2026-11-11T18:00:00Z'),fresh={fetchedAt:now.toISOString()};
+ for(const status of ['active','partial'])assert.equal(telegramFeedState({...fresh,status},now),'active');
+ assert.equal(telegramFeedState({...fresh,status:'inactive'},now),'inactive');
+ for(const alarm of [null,{status:'active'},{...fresh,status:'unknown'},{status:'active',fetchedAt:'2026-11-11T17:58:29Z'},{...fresh,status:'active',sourceUpdatedAt:'2026-11-11T17:57:00Z'},{status:'active',fetchedAt:'2026-11-11T18:01:00Z'}])assert.equal(telegramFeedState(alarm,now),'unknown');
 });
-test('no matching or recent posts is an empty feed, never an all-clear status',()=>{
- const result=filterThreatPosts([{id:'1',text:'Шахед',publishedAt:'2026-11-11T07:00:00Z'},{id:'2',text:'Добрий день',publishedAt:'2026-11-11T10:00:00Z'}],new Date('2026-11-11T10:10:00Z'));
- assert.equal(result.posts.length,0);assert.equal(result.filter.hidden,2);assert.equal(result.filter.officialAlarmConnected,false);
-});
-
-test('rejects the observed political missile-defense story even when newly published',()=>{
- const story='‼️Взимку ми випробуємо першу європейську систему протибалістичного захисту. Сподіваюся на це, – Зеленський\\n\\nПрезидент подякував данській оборонній промисловості. За його словами, Україна зосереджена на розробці системи протидії балістичним ракетам.';
- assert.equal(filterThreatPosts([{id:'43476',text:story,publishedAt:'2026-11-11T10:17:53Z'}],new Date('2026-11-11T10:20:00Z')).posts.length,0);
-});
-test('requires immediate operational wording, expires posts after 30 minutes',()=>{
- const entries=['Балістичні ракети: нова система захисту','Безпілотники та оборона','Шахед поблизу Антоніни','БпЛА летить на Хмельницький','Летить курсом на Базалію/Волочиськ','Повітряна тривога','Вибухи!','Працює ППО'];
- const posts=entries.map((text,i)=>({id:String(i),text,publishedAt:'2026-11-11T10:00:00Z'}));
- assert.deepEqual(filterThreatPosts(posts,new Date('2026-11-11T10:01:00Z')).posts.map(p=>p.id).sort(),['2','3','4','5','6','7']);
- assert.equal(filterThreatPosts(posts,new Date('2026-11-11T10:31:00Z')).posts.length,0);
+test('inactive or unknown status returns no posts and never contacts Telegram',async()=>{
+ const original=globalThis.fetch;globalThis.fetch=()=>{throw Error('should not fetch')};try{for(const status of ['inactive','unknown']){const result=await loadTelegramFeed({status,fetchedAt:new Date().toISOString()});assert.equal(result.mode,status);assert.deepEqual(result.posts,[])}}finally{globalThis.fetch=original}
 });
