@@ -22,3 +22,8 @@ test('management rejects unsigned and cross-origin writes; proxies only fixed va
 });
 
 test('publication verification bypasses an older cached banner',async()=>{const old=globalThis.fetch;let ad={...valid,title:'Old'};let calls=0;globalThis.fetch=async()=>{calls++;return new Response(JSON.stringify(ad))};try{const first=await loadAdvertisement('a'.repeat(40));assert.equal(first.title,'Old');ad={...valid,title:'New'};assert.equal((await loadAdvertisement()).title,'Old');assert.equal((await loadAdvertisement('b'.repeat(40))).title,'New');assert.equal(calls,2)}finally{globalThis.fetch=old}});
+
+test('campaign identity remains stable when hidden, changes with banner content',async()=>{
+ const {advertisementMetricId}=await import('../worker/ads.js');const id=await advertisementMetricId(valid);
+ assert.match(id,/^[a-f0-9]{64}$/);assert.equal(await advertisementMetricId({...valid,enabled:false}),id);assert.notEqual(await advertisementMetricId({...valid,title:'Other'}),id);
+});

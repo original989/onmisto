@@ -28,6 +28,17 @@ test('admin summary requires original989 GitHub identity and never exposes data 
  try{
   assert.equal((await statsRoute(request('short'),env)).status,403);
   globalThis.fetch=async()=>new Response(JSON.stringify({login:'other'}));assert.equal((await statsRoute(request('x'.repeat(30)),env)).status,403);assert.equal(read,0);
-  globalThis.fetch=async()=>new Response(JSON.stringify({login:'original989'}));assert.equal((await statsRoute(request('y'.repeat(30)),env)).status,200);assert.equal(read,1);
+  globalThis.fetch=async(url,options)=>{assert.equal(options.redirect,'manual');return new Response(JSON.stringify({login:'original989'}))};assert.equal((await statsRoute(request('y'.repeat(30)),env)).status,200);assert.equal(read,1);
  }finally{globalThis.fetch=old}
+});
+
+test('ad impressions and clicks are deduplicated by session and campaign, with honest CTR',async()=>{
+ const store=storage(),stats=new VisitStats({storage:store});
+ const event=(session,kind='impression',campaign='a'.repeat(64))=>stats.fetch(new Request('https://stats/ad-event',{method:'POST',body:JSON.stringify({visitor:'viewer1',session,campaign,title:campaign[0]==='a'?'Taxi':'New banner',kind})}));
+ try{
+  await event('one');await event('one');await event('one','click');await event('one','click');await event('two');
+  let data=await(await stats.fetch(new Request('https://stats/summary'))).json();assert.equal(data.ads.today.impressions,2);assert.equal(data.ads.today.clicks,1);assert.equal(data.ads.today.ctr,50);assert.equal(data.ads.today.viewers,1);assert.equal(data.ads.today.campaigns[0].title,'Taxi');
+  await event('one','click','b'.repeat(64));data=await(await stats.fetch(new Request('https://stats/summary'))).json();assert.equal(data.ads.today.impressions,3);assert.equal(data.ads.today.clicks,2);assert.equal(data.ads.today.campaigns.length,2);assert.equal(data.ads.today.ctr,66.67);assert.equal(data.today.visits,0);
+  const health=await stats.fetch(new Request('https://stats/health'));assert.equal(health.status,204);
+ }finally{store.db.close()}
 });

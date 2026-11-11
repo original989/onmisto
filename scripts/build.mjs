@@ -23,4 +23,4 @@ const manifest = JSON.parse(await readFile('web/manifest.webmanifest', 'utf8'));
 await rm('dist', { recursive: true, force: true });
 await mkdir('dist/server', { recursive: true });
 const prefix = 'const adsManagerPage = ' + JSON.stringify(adsManagerPage) + ';\n' + 'const serviceWorkerCode = ' + JSON.stringify(serviceWorkerCode) + ';\n' + 'const page = ' + JSON.stringify(html) + ';\nconst appAssets = ' + JSON.stringify(assets) + ';\nconst appManifest = ' + JSON.stringify(manifest) + ';\n';
-await writeFile('dist/server/index.js', prefix + stats + '\n' + ads.replaceAll('export ', '') + '\n' + fuel.replaceAll('export ', '') + '\n' + alarm.replaceAll('export ', '') + '\n' + telegram.replaceAll('export ', '') + '\n' + parser.replaceAll('export ', '') + '\n' + server.replace(/^import .*?;\n/gm, ''));
+await writeFile('dist/server/index.js', prefix + stats.replace(/^import .*?;\n/gm, '') + '\n' + ads.replaceAll('export ', '') + '\n' + fuel.replaceAll('export ', '') + '\n' + alarm.replaceAll('export ', '') + '\n' + telegram.replaceAll('export ', '') + '\n' + parser.replaceAll('export ', '') + '\n' + server.replace(/^import .*?;\n/gm, ''));

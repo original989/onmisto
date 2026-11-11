@@ -36,7 +36,7 @@ async function cached(request,seconds,load,ctx) {
 export default {
   async fetch(request,env,ctx){
     const url=new URL(request.url);
-    if(url.pathname==='/api/visit'||url.pathname==='/api/visitor-stats')return statsRoute(request,env);
+    if(url.pathname==='/api/visit'||url.pathname==='/api/visitor-stats'||url.pathname==='/api/ad-event')return statsRoute(request,env);
     if(url.pathname==='/api/ad-management')return manageAdvertisement(request);
     if(request.method!=='GET'&&request.method!=='HEAD')return json({error:'Метод не підтримується.'},405);
     if(url.pathname==='/ads-manager')return new Response(adsManagerPage,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'no-referrer','content-security-policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src data: blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"}});

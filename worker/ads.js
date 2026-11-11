@@ -9,13 +9,18 @@ export function normalizeAd(value){
   if(value.enabled&&(!title||!link))throw new Error('Додайте заголовок і посилання.');
   return {enabled:value.enabled,title,description,link,image};
 }
+export async function advertisementMetricId(ad){
+  const raw=JSON.stringify([ad.title,ad.description,ad.link,ad.image]);
+  const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(raw));
+  return Array.from(new Uint8Array(hash),x=>x.toString(16).padStart(2,'0')).join('');
+}
 export async function loadAdvertisement(revision){
   if(!revision&&adsCache?.expires>Date.now())return adsCache.ad;
   try{
     const r=await fetch(ADS_SOURCE+'?v='+(revision||Math.floor(Date.now()/60000)),{signal:AbortSignal.timeout(6000),headers:{Accept:'application/json'}});
     if(!r.ok)throw new Error('ads source');
     const raw=await r.text();if(raw.length>250000)throw new Error('ads size');
-    const ad=normalizeAd(JSON.parse(raw));adsCache={ad,expires:Date.now()+60000};return ad;
+    const normalized=normalizeAd(JSON.parse(raw));const ad={...normalized,metricId:await advertisementMetricId(normalized)};adsCache={ad,expires:Date.now()+60000};return ad;
   }catch{return {enabled:false};}
 }
 
