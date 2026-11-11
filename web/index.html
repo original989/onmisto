@@ -149,6 +149,8 @@ dialog[open]{animation:dialog-arrive 220ms cubic-bezier(.2,.8,.2,1)}
 .fuel-delta{font-size:8px;line-height:1.4;color:var(--dim);margin-top:4px;min-height:12px}.fuel-delta.down{color:var(--accent)}.fuel-delta.up{color:var(--alarm)}.fuel-delta.same{color:var(--dim)}.fuel-widget-price{animation:fuel-slide-in 200ms ease-out}
 @keyframes fuel-slide-in{from{opacity:.55;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
 
+
+.ad-slot{border:1px solid var(--glass-edge);border-radius:19px;background:var(--glass);overflow:hidden;box-shadow:var(--glass-shadow)}.ad-empty{padding:15px 18px;display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;color:var(--dim)}.ad-tag{display:block;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}.ad-link{display:block;color:var(--ink);text-decoration:none}.ad-link img{display:block;width:100%;max-height:240px;object-fit:contain;background:var(--bg)}.ad-copy{padding:16px 18px}.ad-copy strong{display:block;font-size:18px;line-height:1.35;margin-top:5px;overflow-wrap:anywhere}.ad-copy p{font-size:13px;line-height:1.5;margin:6px 0 0;color:var(--dim);overflow-wrap:anywhere}.ad-cta{display:block;color:var(--accent);font-size:12px;margin-top:10px}
 </style>
 </head>
 <body>
@@ -419,8 +421,8 @@ function home(){
   const welcome='<section class="welcome"><div class="welcome-art">'+icon('power')+'</div><p class="eyebrow">Менше невідомості у твоєму дні</p><h1>Плануй день<br><em>зі світлом.</em></h1><p>Коли заряджати, працювати й робити паузу. Додай адресу — і графік твого будинку завжди під рукою.</p>'+addActions()+'</section><div class="empty-tip">'+icon('check')+'<p><strong>З офіційного джерела</strong>Погодинні графіки та окремі відключення за будинком з сайту обленерго.</p></div>';
   const content=pageMode==='safety'?securityFeed():addresses.length?intro+'<section class="cards" aria-label="Мої адреси">'+addresses.map(card).join('')+'</section>'+addActions():welcome;
   const navigation='<nav class="app-tabs" aria-label="Розділи"><button data-action="light-tab" aria-pressed="'+(pageMode==='light')+'">Світло</button><button data-action="safety-tab" aria-pressed="'+(pageMode==='safety')+'">Безпека</button></nav>';
-  if(pageMode==='safety')return header+topWidgets()+navigation+content+'<footer><p class="footer-note">Орієнтуйся на офіційні сповіщення про тривогу.</p></footer>';
-  return header+topWidgets()+navigation+content+'<footer>'+(installed()?'':'<button class="install-link" type="button" data-action="install">'+icon('install')+'Додати onmisto на екран iPhone</button>')+sourceInfo()+'<p class="footer-note">Автооновлення кожні 5 хв, поки сторінка відкрита. Час за Києвом.<br>Показано плановий графік. Фактичне живлення може відрізнятися.</p></footer>';
+  if(pageMode==='safety')return header+topWidgets()+navigation+content+adSlot()+'<footer><p class="footer-note">Орієнтуйся на офіційні сповіщення про тривогу.</p></footer>';
+  return header+topWidgets()+navigation+content+adSlot()+'<footer>'+(installed()?'':'<button class="install-link" type="button" data-action="install">'+icon('install')+'Додати onmisto на екран iPhone</button>')+sourceInfo()+'<p class="footer-note">Автооновлення кожні 5 хв, поки сторінка відкрита. Час за Києвом.<br>Показано плановий графік. Фактичне живлення може відрізнятися.</p></footer>';
 }
 function hourCell(hour,outages,date,queue){
   const start=hour*60,end=start+60;
@@ -466,7 +468,7 @@ function detail(item){
   const tabs=addresses.length>1?'<nav class="address-tabs" aria-label="Перемкнути адресу">'+addresses.map(address=>'<button class="address-tab" type="button" data-action="detail" data-id="'+escapeHtml(address.id)+'" aria-current="'+(address.id===item.id)+'">'+escapeHtml(address.name)+'</button>').join('')+'</nav>':'';
   const heading='<div class="detail-heading"><div><p class="eyebrow">Моя адреса</p><h1>'+escapeHtml(item.name)+'</h1><span class="sub">'+(item.streetId?escapeHtml(item.streetText)+', '+escapeHtml(item.house):'Хмельницька область')+'</span></div><span class="queue-badge">Підчерга '+item.queue+'</span></div>';
   const settings='<section class="settings-section"><h2 class="section-title">Налаштування адреси</h2><div class="glass"><label class="row">Назва<input aria-label="Назва адреси" data-field="name" maxlength="60" value="'+escapeHtml(item.name)+'"></label><div class="row"><span>Оператор</span><span>Хмельницькобленерго</span></div><label class="row">Підчерга<select data-field="queue">'+queueOptions(options?.length?[...new Set([item.queue,...options])]:queues,item.queue)+'</select></label>'+(item.streetId?'<p class="sub">'+escapeHtml(item.settlementText)+', '+escapeHtml(item.streetText)+', '+escapeHtml(item.house)+'</p>':'')+'</div><p class="muted">'+(item.streetId?'У сітці враховано відключення обраного приєднання.':'Для перевірки аварійних і планових робіт додай адресу будинку.')+'</p><button class="danger" type="button" data-action="remove" data-id="'+escapeHtml(item.id)+'">Видалити адресу</button></section>';
-  return header+savedScheduleBanner()+changesBanner(item)+tabs+heading+transitionPanel(item)+'<section class="schedule-section" aria-label="Графік світла"><h2 class="section-title">Графік на день</h2>'+dateTabs+summary+hours+'</section>'+eventList(item)+settings+'<footer>'+sourceInfo()+'<p class="footer-note">Час за Києвом. Фактичне живлення може відрізнятися від графіка.</p></footer>';
+  return header+savedScheduleBanner()+changesBanner(item)+tabs+heading+transitionPanel(item)+'<section class="schedule-section" aria-label="Графік світла"><h2 class="section-title">Графік на день</h2>'+dateTabs+summary+hours+'</section>'+eventList(item)+settings+adSlot()+'<footer>'+sourceInfo()+'<p class="footer-note">Час за Києвом. Фактичне живлення може відрізнятися від графіка.</p></footer>';
 }
 function render(){
   const item=addresses.find(item=>item.id===selected);
@@ -642,6 +644,7 @@ document.addEventListener('pointerdown',event=>{
   button.append(wave);wave.addEventListener('animationend',()=>wave.remove(),{once:true});
 },{passive:true});
 
+/* ADVERTISEMENT */
 render();refresh();refreshAirRaid();refreshFuel();setupOfflineShell();
 window.addEventListener('online',()=>{refresh();refreshAirRaid();refreshFuel();if(pageMode==='safety')refreshTelegram()});
 window.addEventListener('offline',()=>{airRaidData={status:'unknown'};fuelError='Немає інтернету';telegramError='Немає інтернету';render()});
