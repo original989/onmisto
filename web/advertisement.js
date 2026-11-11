@@ -9,5 +9,5 @@ async function refreshAdvertisement(){
   const slot=document.querySelector('#ad-slot');if(slot)slot.outerHTML=adSlot();
 }
 refreshAdvertisement();
-setInterval(()=>{if(!document.hidden)refreshAdvertisement()},120000);
+setInterval(()=>{if(!document.hidden)refreshAdvertisement()},20000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshAdvertisement()});
