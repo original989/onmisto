@@ -1,0 +1,33 @@
+{
+  "stationId": 524,
+  "source": "https://upg.ua/merezha_azk/",
+  "days": [
+    {
+      "date": "2026-11-11",
+      "observedAt": "2026-11-11T14:53:26.640Z",
+      "publishedDate": "2026-11-11",
+      "fuels": {
+        "1": {
+          "name": "upgDIESEL",
+          "priceCents": 10490
+        },
+        "2": {
+          "name": "A-95",
+          "priceCents": 8790
+        },
+        "4": {
+          "name": "Газ",
+          "priceCents": 6090
+        },
+        "5": {
+          "name": "EURO DIESEL",
+          "priceCents": 10190
+        },
+        "9": {
+          "name": "upg95",
+          "priceCents": 9090
+        }
+      }
+    }
+  ]
+}
