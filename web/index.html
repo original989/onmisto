@@ -341,23 +341,31 @@ function addActions(){
   return '<div class="add-actions"><button class="wide primary" type="button" data-action="add">'+icon('plus')+'Додати адресу</button><button class="wide" type="button" data-action="queue">Знаю свою підчергу</button></div>';
 }
 function telegramTime(value){return new Intl.DateTimeFormat('uk-UA',{timeZone:'Europe/Kyiv',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(value))}
+function currentFeedAlarmState(){
+  const a=airRaidData,f=Date.parse(a?.fetchedAt),u=a?.sourceUpdatedAt?Date.parse(a.sourceUpdatedAt):f;
+  if(!Number.isFinite(f)||!Number.isFinite(u)||Date.now()-f>90000||Date.now()-u>120000||f-Date.now()>30000||u-Date.now()>30000)return 'unknown';
+  return ['active','partial'].includes(a.status)?'active':a.status==='inactive'?'inactive':'unknown';
+}
 function securityFeed(){
-  const oldFetch=telegramData&&Date.now()-Date.parse(telegramData.fetchedAt)>90000;
-  let body='<section class="safety-feed" aria-label="Повідомлення про загрози"><div class="safety-head"><div><p class="eyebrow">Уся Хмельницька область</p><h1>Повітряні загрози</h1><p class="muted">Старокостянтинів 24/7 · неофіційний канал</p></div><button class="icon-button" data-action="telegram-refresh" aria-label="Оновити повідомлення" '+(telegramLoading?'disabled':'')+'>'+icon('refresh')+'</button></div>';
-  if(telegramError)body+='<p class="notice" role="status">Немає зв’язку зі стрічкою. '+(telegramData?'Показано попередні дописи. ':'')+'<a href="https://t.me/starkon_24_7" target="_blank" rel="noopener noreferrer">Telegram ↗</a></p>';
-  else if(telegramLoading&&!telegramData)body+='<p class="muted" role="status">Оновлюю…</p>';
-  if(telegramData){
-    const updated=clockFormat.format(new Date(telegramData.fetchedAt));
-    body+='<p class="feed-meta">'+(oldFetch?'Немає оновлень з ':'Оновлено ')+updated+'</p>';
-    if(!telegramData.posts.length)body+='<div class="glass"><p class="muted">Свіжих повідомлень за темою немає.</p></div>';
-    body+=telegramData.posts.map(post=>{const older=Date.now()-Date.parse(post.publishedAt)>900000;return '<article class="feed-post"><time datetime="'+escapeHtml(post.publishedAt)+'">'+telegramTime(post.publishedAt)+'</time>'+(older?'<span class="feed-age">Понад 15 хв тому</span>':'')+(post.selection==='context'?'<span class="feed-age">Продовження повідомлення</span>':'')+'<p>'+escapeHtml(post.text)+'</p>'+(post.truncated?'<p class="muted">Повний текст у Telegram.</p>':'')+'<a href="'+escapeHtml(post.url)+'" target="_blank" rel="noopener noreferrer">Оригінал у Telegram ↗</a></article>'}).join('');
+  const state=currentFeedAlarmState();
+  let body='<section class="safety-feed" aria-label="Повідомлення каналу"><div class="safety-head"><div><p class="eyebrow">Хмельницька область</p><h1>Повідомлення каналу</h1><p class="muted">Старокостянтинів 24/7 · неофіційний канал</p></div><button class="icon-button" data-action="telegram-refresh" aria-label="Оновити повідомлення" '+(telegramLoading?'disabled':'')+'>'+icon('refresh')+'</button></div>';
+  const link='<a href="https://t.me/starkon_24_7" target="_blank" rel="noopener noreferrer">Відкрити Telegram ↗</a>';
+  if(state==='inactive')return body+'<div class="glass"><p class="muted">Стрічка з’явиться під час повітряної тривоги в області.</p></div>'+link+'</section>';
+  if(state==='unknown')return body+'<p class="notice" role="status">Не вдалося перевірити статус тривоги. '+link+'</p></section>';
+  if(telegramError)body+='<p class="notice" role="status">Не вдалося оновити повідомлення. '+link+'</p>';
+  const stale=!telegramData||telegramData.mode!=='active'||Date.now()-Date.parse(telegramData.fetchedAt)>90000;
+  if(stale)body+='<p class="muted" role="status">'+(telegramLoading?'Завантажую дописи…':'Стрічка потребує оновлення. '+link)+'</p>';
+  else{
+    body+='<p class="feed-meta">Усі останні дописи · оновлено '+clockFormat.format(new Date(telegramData.fetchedAt))+'</p>';
+    if(!telegramData.posts.length)body+='<p class="muted">Публічних дописів поки немає.</p>';
+    body+=telegramData.posts.map(post=>'<article class="feed-post"><time datetime="'+escapeHtml(post.publishedAt)+'">'+telegramTime(post.publishedAt)+'</time><p>'+escapeHtml(post.text)+'</p>'+(post.hasMedia?'<p class="muted">Фото, відео та інші медіа — у Telegram.</p>':'')+(post.truncated?'<p class="muted">Повний текст у Telegram.</p>':'')+'<a href="'+escapeHtml(post.url)+'" target="_blank" rel="noopener noreferrer">Відкрити допис ↗</a></article>').join('');
   }
   return body+'<button class="text-button" type="button" data-action="safety-info">Про стрічку</button></section>';
 }
 async function refreshTelegram(){
   if(telegramLoading)return;
   telegramLoading=true;render();
-  try{const data=await api('/api/telegram');if(!Array.isArray(data.posts))throw new Error('Стрічка недоступна.');telegramData=data;telegramError=''}catch(error){telegramError=error.message}
+  try{const data=await api('/api/telegram');if(!Array.isArray(data.posts))throw new Error('Стрічка недоступна.');telegramData=data;if(data.alarm)airRaidData=data.alarm;telegramError=''}catch(error){telegramError=error.message}
   finally{telegramLoading=false;render()}
 }
 
@@ -412,8 +420,9 @@ function airRaidCard(){
 async function refreshAirRaid(){
   if(airRaidLoading)return;
   airRaidLoading=true;
+  const previous=currentFeedAlarmState();
   try{airRaidData=await api('/api/air-raid')}catch{airRaidData={status:'unknown'}}
-  finally{airRaidLoading=false;const card=document.querySelector('#air-raid-card');if(card)card.outerHTML=airRaidCard()}
+  finally{airRaidLoading=false;const card=document.querySelector('#air-raid-card');if(card)card.outerHTML=airRaidCard();if(pageMode==='safety'&&!selected){render();if(currentFeedAlarmState()==='active'&&(previous!=='active'||telegramData?.mode!=='active'))refreshTelegram()}}
 }
 function home(){
   const header='<header><div class="brand">'+brand()+'</div><div class="header-actions">'+installButton()+'<button class="icon-button theme" type="button" data-action="theme" aria-label="Змінити тему">'+icon(document.documentElement.dataset.theme==='light'?'moon':'sun')+'</button></div></header>';
@@ -577,7 +586,7 @@ document.addEventListener('click',async event=>{
     case 'fuel-refresh':await refreshFuel();showFuelInfo();break;
     case 'light-tab':pageMode='light';render();break;
     case 'safety-tab':pageMode='safety';render();await refreshTelegram();break;
-    case 'safety-info':openDialog('Про стрічку','<p class="muted">Показуємо відібрані текстові дописи місцевого неофіційного каналу за останні 30 хвилин. Перевіряємо оновлення щохвилини, поки цей розділ відкритий.</p><p class="muted">Відбір за словами й контекстом може помилятися або пропускати повідомлення. Статус тривоги показано в окремій картці з посиланням на джерело. Ubilling — сторонній сервіс, його обласний статус не підтверджує відсутності місцевих тривог. Якщо джерело недоступне або дані застарілі, картка не показує відбій. Порожня стрічка не означає відбій або відсутність загрози. Час за Києвом.</p><button class="wide primary" data-action="close">Зрозуміло</button>');break;
+    case 'safety-info':openDialog('Про стрічку','<p class="muted">Під час тривоги в області показуємо останні 20 доступних дописів каналу без відбору за словами. Оновлюємо кожні 30 секунд, поки розділ відкритий. Фото й відео відкриваються в Telegram.</p><p class="muted">Канал неофіційний. Дописи можуть містити новини й рекламу, а також повідомлення до початку поточної тривоги. Орієнтуйся на офіційні сповіщення. Порожня стрічка не означає відсутність загрози.</p><button class="wide primary" data-action="close">Зрозуміло</button>');break;
     case 'telegram-refresh':await refreshTelegram();break;
     case 'detail':showAddress(id);break;
     case 'back':showAddress(null);break;
@@ -629,7 +638,7 @@ app.addEventListener('touchcancel',()=>{swipeStart=null},{passive:true});
 app.addEventListener('touchend',event=>{if(!swipeStart)return;const end=event.changedTouches[0],dx=end.clientX-swipeStart.clientX,dy=end.clientY-swipeStart.clientY;swipeStart=null;if(Math.abs(dx)<55||Math.abs(dx)<Math.abs(dy)*1.5)return;const index=addresses.findIndex(item=>item.id===selected),next=addresses[index+(dx<0?1:-1)];if(next)showAddress(next.id)},{passive:true});
 setInterval(()=>{if(!document.hidden)refresh()},300000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){refresh();refreshAirRaid();refreshFuel();if(pageMode==='safety')refreshTelegram()}});
-setInterval(()=>{if(!document.hidden&&pageMode==='safety'&&!selected)refreshTelegram()},60000);
+setInterval(()=>{if(!document.hidden&&pageMode==='safety'&&!selected)refreshTelegram()},30000);
 setInterval(()=>{const minute=currentLocal();if(minute===lastMinute)return;lastMinute=minute;if(!dialog.open&&!['INPUT','SELECT'].includes(document.activeElement?.tagName)){if(schedule&&schedule.today!==today())refresh();else render()}},10000);
 setInterval(()=>{app.querySelectorAll('[data-next]').forEach(el=>el.textContent=countdown(Number(el.dataset.next)))},1000);
 
