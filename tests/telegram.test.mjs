@@ -28,7 +28,7 @@ test('retries after failure, coalesces concurrent fetches and caches successful 
  await assert.rejects(loadTelegramFeed());
  globalThis.fetch=async()=>{count++;return new Response('',{status:302,headers:{Location:'https://t.me/starkon_24_7'}})};
  await assert.rejects(loadTelegramFeed());
- globalThis.fetch=async()=>{count++;return new Response(page(post('1','БпЛА',new Date().toISOString())))};
+ globalThis.fetch=async()=>{count++;return new Response(page(post('1','БпЛА летить на Хмельницький',new Date().toISOString())))};
  const [a,b]=await Promise.all([loadTelegramFeed(),loadTelegramFeed()]);assert.deepEqual(a,b);assert.equal(a.posts.length,1);assert.equal(count,3);
  await loadTelegramFeed();assert.equal(count,3);
  }finally{globalThis.fetch=original}
@@ -46,7 +46,7 @@ test('threat filter covers regional movement and short contextual updates, exclu
   ['8','Відбій повітряної тривоги','10:07'],
   ['9','На Хмельницький','10:45']
  ].map(([id,text,clock])=>({id,text,publishedAt:'2026-11-11T'+clock+':00Z'}));
- const result=filterThreatPosts(entries,new Date('2026-11-11T10:50:00Z'));
+ const result=filterThreatPosts(entries,new Date('2026-11-11T10:10:00Z'));
  assert.deepEqual(result.posts.map(p=>p.id),['8','4','3','2','1']);
  assert.equal(result.posts.find(p=>p.id==='2').selection,'context');
  assert.equal(result.filter.officialAlarmConnected,false);
@@ -54,4 +54,15 @@ test('threat filter covers regional movement and short contextual updates, exclu
 test('no matching or recent posts is an empty feed, never an all-clear status',()=>{
  const result=filterThreatPosts([{id:'1',text:'Шахед',publishedAt:'2026-11-11T07:00:00Z'},{id:'2',text:'Добрий день',publishedAt:'2026-11-11T10:00:00Z'}],new Date('2026-11-11T10:10:00Z'));
  assert.equal(result.posts.length,0);assert.equal(result.filter.hidden,2);assert.equal(result.filter.officialAlarmConnected,false);
+});
+
+test('rejects the observed political missile-defense story even when newly published',()=>{
+ const story='‼️Взимку ми випробуємо першу європейську систему протибалістичного захисту. Сподіваюся на це, – Зеленський\\n\\nПрезидент подякував данській оборонній промисловості. За його словами, Україна зосереджена на розробці системи протидії балістичним ракетам.';
+ assert.equal(filterThreatPosts([{id:'43476',text:story,publishedAt:'2026-11-11T10:17:53Z'}],new Date('2026-11-11T10:20:00Z')).posts.length,0);
+});
+test('requires immediate operational wording, expires posts after 30 minutes',()=>{
+ const entries=['Балістичні ракети: нова система захисту','Безпілотники та оборона','Шахед поблизу Антоніни','БпЛА летить на Хмельницький','Летить курсом на Базалію/Волочиськ','Повітряна тривога','Вибухи!','Працює ППО'];
+ const posts=entries.map((text,i)=>({id:String(i),text,publishedAt:'2026-11-11T10:00:00Z'}));
+ assert.deepEqual(filterThreatPosts(posts,new Date('2026-11-11T10:01:00Z')).posts.map(p=>p.id).sort(),['2','3','4','5','6','7']);
+ assert.equal(filterThreatPosts(posts,new Date('2026-11-11T10:31:00Z')).posts.length,0);
 });
