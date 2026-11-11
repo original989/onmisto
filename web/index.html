@@ -93,6 +93,7 @@ dialog[open]{animation:dialog-arrive 220ms cubic-bezier(.2,.8,.2,1)}
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.card,.welcome,.glass,.feed-post,.summary-stat,.outage-list,.icon-button,.wide,.date-tab,.address-tab,.search-results button,.alarm-card,header,dialog{background-color:var(--panel)}}
 
 .saved-banner,.change-banner{border:1px solid var(--glass-edge);background:var(--glass);border-radius:16px;padding:13px 16px;font-size:12px;line-height:1.6;margin:0}.saved-banner{color:var(--off-ink);background:var(--off)}.change-banner{display:flex;gap:14px;justify-content:space-between;align-items:center;border-color:#8cbcff66}.change-banner strong{font-size:13px}.change-banner .text-button{font-size:12px;flex:none}.hour.changed{outline:2px solid #8cbcff;outline-offset:-3px}.hour.changed::after{content:'';position:absolute;right:4px;top:4px;width:4px;height:4px;border-radius:50%;background:#8cbcff}.change-legend{font-size:10px;color:#8cbcff;margin:0}
+.shell{width:100%}.shell>*{min-width:0}.day-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.summary-stat,.date-tab,.transition-copy{min-width:0}.summary-stat strong{font-size:clamp(20px,4.8vw,25px);font-variant-numeric:tabular-nums;overflow-wrap:normal}.date-tabs{min-width:0}.date-tab{flex:1 1 0}.transition-panel{grid-template-columns:minmax(0,1fr) auto}.transition-time{min-width:0}@media(max-width:370px){.summary-stat{padding:12px}.transition-panel{padding:16px;gap:10px}.transition-time strong{font-size:24px}.transition-copy strong{font-size:15px}}
 </style>
 </head>
 <body>
@@ -347,16 +348,17 @@ function transitionPanel(item){
   const text=current.next===1440?'До кінця опублікованого графіка':current.next!=null?(current.off?'Увімкнення о '+time(current.next):'Відключення о '+time(current.next)):'До кінця доби без змін';
   return '<div class="transition-panel '+(known?(current.off?'off':''):'unknown')+'"><div class="transition-copy"><strong>'+current.label+'</strong><span>Зараз · '+(known?text:'Дані з’являться після публікації')+'</span></div>'+(current.next!=null?'<div class="transition-time"><strong data-next="'+current.next+'">'+countdown(current.next)+'</strong><small>'+changeLabel(current)+'</small></div>':'')+'</div>';
 }
+function formatDuration(minutes){const value=Math.max(0,Math.round(minutes));const hours=Math.floor(value/60),rest=value%60;return hours?(hours+' год'+(rest?' '+rest+' хв':'')):rest+' хв'}
 function detail(item){
   const date=selectedDate||today();
   const outages=dayData(item,date);
-  const totalOff=outages?.reduce((sum,[from,to])=>sum+to-from,0)/60;
+  const totalOff=outages?.reduce((sum,[from,to])=>sum+to-from,0);
   const tomorrow=new Date(today()+'T12:00:00Z');
   tomorrow.setUTCDate(tomorrow.getUTCDate()+1);
   const tomorrowKey=tomorrow.toISOString().slice(0,10);
   const dates=[...new Set([today(),tomorrowKey,...(schedule?.days.map(day=>day.date)||[])])].sort();
   const dateTabs='<nav class="date-tabs" aria-label="Дата графіка">'+dates.map(day=>'<button type="button" class="date-tab" data-action="date" data-date="'+day+'" aria-pressed="'+(day===date)+'">'+(day===today()?'Сьогодні':day===tomorrowKey?'Завтра':'Опублікований графік')+'<strong>'+dayLabel(day)+'</strong></button>').join('')+'</nav>';
-  const summary=outages?'<div class="day-summary"><div class="summary-stat available"><strong>'+String(24-totalOff).replace('.',',')+' год</strong>зі світлом за графіком</div><div class="summary-stat"><strong>'+String(totalOff).replace('.',',')+' год</strong>відключень за графіком</div></div>':'';
+  const summary=outages?'<div class="day-summary"><div class="summary-stat available"><strong>'+formatDuration(1440-totalOff)+'</strong>зі світлом за графіком</div><div class="summary-stat"><strong>'+formatDuration(totalOff)+'</strong>відключень за графіком</div></div>':'';
   const windows=outages?'<div class="outage-list"><p class="eyebrow">Години відключень</p><div class="intervals">'+(outages.length?outages.map(([from,to])=>'<span>'+time(from)+'–'+time(to)+'</span>').join(''):'У графіку немає відключень')+'</div></div>':'';
   const unavailable=!schedule&&!sourceError?'Завантажуємо погодинний графік…':sourceError&&!schedule?'Не вдалося завантажити графік. Спробуй оновити.':'На '+dayLabel(date)+' джерело ще не опублікувало погодинний графік. Перевір пізніше.';
   const hours=outages?'<div class="grid" id="hours">'+Array.from({length:24},(_,hour)=>hourCell(hour,outages,date,item.queue)).join('')+'</div><div class="legend"><span><i class="active"></i> є світло</span><span><i></i> відключення</span><span><i class="partial"></i> частково</span><span><i class="current"></i> зараз</span></div>'+(relevantScheduleChanges(item.queue,date).length?'<p class="change-legend">Крапка й синя рамка — змінені години</p>':'')+windows:'<p class="notice">'+unavailable+'</p>';
