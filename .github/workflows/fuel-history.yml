@@ -1,0 +1,38 @@
+name: Record daily UPG Slavuta prices
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '55 20,21 * * *'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fuel-history.yml'
+      - 'scripts/collect-fuel-history.mjs'
+      - 'worker/fuel.js'
+permissions:
+  contents: write
+concurrency:
+  group: daily-fuel-history
+  cancel-in-progress: false
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Collect official station prices
+        run: node scripts/collect-fuel-history.mjs
+      - name: Save daily snapshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/fuel-history.json
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "Record daily UPG Slavuta fuel prices"
+          git pull --rebase origin main
+          git push origin HEAD:main
