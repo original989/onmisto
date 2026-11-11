@@ -1,0 +1,11 @@
+{
+  "name": "onmisto",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bash scripts/build.sh",
+    "validate": "node scripts/validate-artifact.mjs",
+    "dev": "node scripts/dev.mjs",
+    "deploy": "npm run build && npx wrangler deploy"
+  }
+}

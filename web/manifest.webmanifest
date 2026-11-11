@@ -1,0 +1,27 @@
+{
+  "id": "/",
+  "name": "onmisto",
+  "short_name": "onmisto",
+  "description": "Графіки світла Хмельниччини, улюблені адреси й таймер до наступної зміни.",
+  "lang": "uk",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#101d24",
+  "theme_color": "#101d24",
+  "icons": [
+    {
+      "src": "/icons/onmisto-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/onmisto-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
