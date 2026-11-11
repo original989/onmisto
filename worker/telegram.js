@@ -45,7 +45,7 @@ export async function loadTelegramFeed() {
   if (telegramCache && Date.now() - telegramCache.at < 30000) return telegramCache.data;
   if (telegramPending) return telegramPending;
   telegramPending = (async () => {
-    const response = await fetch('https://t.me/s/' + telegramChannel, {signal:AbortSignal.timeout(12000), redirect:'error', headers:{Accept:'text/html'}});
+    const response = await fetch('https://t.me/s/' + telegramChannel, {signal:AbortSignal.timeout(12000), redirect:'manual', headers:{Accept:'text/html'}});
     if (!response.ok) throw new Error('Telegram тимчасово не віддає повідомлення. Відкрий канал у Telegram.');
     const html = await response.text();
     if (html.length > 2500000) throw new Error('Не вдалося прочитати стрічку Telegram.');
