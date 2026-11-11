@@ -49,7 +49,7 @@ export default {
       if(url.pathname==='/api/advertisement')return json(await loadAdvertisement(/^[a-f0-9]{40}$/.test(url.searchParams.get('revision')||'')?url.searchParams.get('revision'):null));
       if(url.pathname==='/api/fuel')return json(await loadSlavutaDiesel());
       if(url.pathname==='/api/air-raid')return json(await loadAirRaid(env));
-      if(url.pathname==='/api/telegram')return json(await loadTelegramFeed());
+      if(url.pathname==='/api/telegram')return json(await loadTelegramFeed(await loadAirRaid(env)));
       if(url.pathname==='/api/schedules')return await cached(request,120,async()=>parseSchedules(await fetchSource(new URL(scheduleUrl).pathname)),ctx);
       if(url.pathname==='/api/settlements'||url.pathname==='/api/streets'){
         const term=(url.searchParams.get('term')||'').trim();
