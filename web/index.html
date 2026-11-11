@@ -200,10 +200,11 @@ async function refreshTelegram(){
   finally{telegramLoading=false;render()}
 }
 function airRaidCard(){
-  const stale=airRaidData?.fetchedAt&&Date.now()-Date.parse(airRaidData.fetchedAt)>90000;
+  const stale=(airRaidData?.fetchedAt&&Date.now()-Date.parse(airRaidData.fetchedAt)>90000)||(airRaidData?.sourceUpdatedAt&&Date.now()-Date.parse(airRaidData.sourceUpdatedAt)>120000);
   const state=stale?'unknown':airRaidData?.status;
-  const label=state==='active'?'🔴 Повітряна тривога':state==='partial'?'🔴 Тривога в частині області':state==='inactive'?'Повітряної тривоги немає':airRaidLoading&&!airRaidData?'Перевіряю статус тривоги…':'Статус тривоги недоступний';
-  return '<section id="air-raid-card" class="alarm-card '+(state==='active'?'active':state==='partial'?'partial':'')+'" aria-label="Статус повітряної тривоги"><strong>'+label+'</strong><small>Хмельницька область'+(airRaidData?.fetchedAt?' · '+(stale?'Останні дані ':'Оновлено ')+clockFormat.format(new Date(airRaidData.fetchedAt)):'')+'</small><a href="https://map.ukrainealarm.com/" target="_blank" rel="noopener noreferrer">Мапа «Повітряна тривога» ↗</a></section>';
+  const label=state==='active'?'🔴 Повітряна тривога':state==='partial'?'🔴 Тривога в частині області':state==='inactive'?(airRaidData?.coverage==='oblast-only'?'Обласну тривогу не зафіксовано':'Повітряної тривоги немає'):airRaidLoading&&!airRaidData?'Перевіряю статус тривоги…':'Статус тривоги недоступний';
+  const provider=airRaidData?.provider==='ubilling';
+  return '<section id="air-raid-card" class="alarm-card '+(state==='active'?'active':state==='partial'?'partial':'')+'" aria-label="Статус повітряної тривоги"><strong>'+label+'</strong><small>Хмельницька область'+(airRaidData?.fetchedAt?' · '+(stale?'Останні дані ':'Оновлено ')+clockFormat.format(new Date(airRaidData.sourceUpdatedAt||airRaidData.fetchedAt)):'')+'</small><a href="'+(provider?'https://ubilling.net.ua/aerialalerts/':'https://map.ukrainealarm.com/')+'" target="_blank" rel="noopener noreferrer">'+(provider?'Ubilling · обласний статус ↗':'Мапа «Повітряна тривога» ↗')+'</a></section>';
 }
 async function refreshAirRaid(){
   if(airRaidLoading)return;
@@ -366,7 +367,7 @@ document.addEventListener('click',async event=>{
   switch(action){
     case 'light-tab':pageMode='light';render();break;
     case 'safety-tab':pageMode='safety';render();await refreshTelegram();break;
-    case 'safety-info':openDialog('Про стрічку','<p class="muted">Показуємо відібрані текстові дописи місцевого неофіційного каналу за останні 30 хвилин. Перевіряємо оновлення щохвилини, поки цей розділ відкритий.</p><p class="muted">Відбір за словами й контекстом може помилятися або пропускати повідомлення. Статус тривоги показано в окремій картці, якщо офіційне джерело підключене. Якщо джерело недоступне або дані застарілі, картка не показує відбій. Порожня стрічка не означає відбій або відсутність загрози. Час за Києвом.</p><button class="wide primary" data-action="close">Зрозуміло</button>');break;
+    case 'safety-info':openDialog('Про стрічку','<p class="muted">Показуємо відібрані текстові дописи місцевого неофіційного каналу за останні 30 хвилин. Перевіряємо оновлення щохвилини, поки цей розділ відкритий.</p><p class="muted">Відбір за словами й контекстом може помилятися або пропускати повідомлення. Статус тривоги показано в окремій картці з посиланням на джерело. Ubilling — сторонній сервіс, його обласний статус не підтверджує відсутності місцевих тривог. Якщо джерело недоступне або дані застарілі, картка не показує відбій. Порожня стрічка не означає відбій або відсутність загрози. Час за Києвом.</p><button class="wide primary" data-action="close">Зрозуміло</button>');break;
     case 'telegram-refresh':await refreshTelegram();break;
     case 'detail':showAddress(id);break;
     case 'back':showAddress(null);break;
