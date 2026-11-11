@@ -421,8 +421,8 @@ function home(){
   const welcome='<section class="welcome"><div class="welcome-art">'+icon('power')+'</div><p class="eyebrow">Менше невідомості у твоєму дні</p><h1>Плануй день<br><em>зі світлом.</em></h1><p>Коли заряджати, працювати й робити паузу. Додай адресу — і графік твого будинку завжди під рукою.</p>'+addActions()+'</section><div class="empty-tip">'+icon('check')+'<p><strong>З офіційного джерела</strong>Погодинні графіки та окремі відключення за будинком з сайту обленерго.</p></div>';
   const content=pageMode==='safety'?securityFeed():addresses.length?intro+'<section class="cards" aria-label="Мої адреси">'+addresses.map(card).join('')+'</section>'+addActions():welcome;
   const navigation='<nav class="app-tabs" aria-label="Розділи"><button data-action="light-tab" aria-pressed="'+(pageMode==='light')+'">Світло</button><button data-action="safety-tab" aria-pressed="'+(pageMode==='safety')+'">Безпека</button></nav>';
-  if(pageMode==='safety')return header+topWidgets()+navigation+content+adSlot()+'<footer><p class="footer-note">Орієнтуйся на офіційні сповіщення про тривогу.</p></footer>';
-  return header+topWidgets()+navigation+content+adSlot()+'<footer>'+(installed()?'':'<button class="install-link" type="button" data-action="install">'+icon('install')+'Додати onmisto на екран iPhone</button>')+sourceInfo()+'<p class="footer-note">Автооновлення кожні 5 хв, поки сторінка відкрита. Час за Києвом.<br>Показано плановий графік. Фактичне живлення може відрізнятися.</p></footer>';
+  if(pageMode==='safety')return header+topWidgets()+navigation+adSlot()+content+'<footer><p class="footer-note">Орієнтуйся на офіційні сповіщення про тривогу.</p></footer>';
+  return header+topWidgets()+navigation+adSlot()+content+'<footer>'+(installed()?'':'<button class="install-link" type="button" data-action="install">'+icon('install')+'Додати onmisto на екран iPhone</button>')+sourceInfo()+'<p class="footer-note">Автооновлення кожні 5 хв, поки сторінка відкрита. Час за Києвом.<br>Показано плановий графік. Фактичне живлення може відрізнятися.</p></footer>';
 }
 function hourCell(hour,outages,date,queue){
   const start=hour*60,end=start+60;
