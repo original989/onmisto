@@ -2,5 +2,21 @@
   "name": "onmisto",
   "main": "dist/server/index.js",
   "compatibility_date": "2026-11-10",
-  "workers_dev": true
+  "workers_dev": true,
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "VISIT_STATS",
+        "class_name": "VisitStats"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "onmisto-visits-v1",
+      "new_sqlite_classes": [
+        "VisitStats"
+      ]
+    }
+  ]
 }

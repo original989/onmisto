@@ -448,7 +448,7 @@ function home(){
   const content=pageMode==='safety'?securityFeed():addresses.length?intro+'<section class="cards" aria-label="Мої адреси">'+addresses.map(card).join('')+'</section>'+addActions():welcome;
   const navigation='<nav class="app-tabs" aria-label="Розділи"><button data-action="light-tab" aria-pressed="'+(pageMode==='light')+'">Світло</button><button data-action="safety-tab" aria-pressed="'+(pageMode==='safety')+'">Безпека</button></nav>';
   if(pageMode==='safety')return header+topWidgets()+navigation+content+adSlot()+'<footer><p class="footer-note">Орієнтуйся на офіційні сповіщення про тривогу.</p></footer>';
-  return header+topWidgets()+navigation+content+adSlot()+'<footer>'+(installed()?'':'<button class="install-link" type="button" data-action="install">'+icon('install')+'Додати onmisto на екран iPhone</button>')+sourceInfo()+'<p class="footer-note">Автооновлення кожні 5 хв, поки сторінка відкрита. Час за Києвом.<br>Показано плановий графік. Фактичне живлення може відрізнятися.</p></footer>';
+  return header+topWidgets()+navigation+content+adSlot()+'<footer>'+(installed()?'':'<button class="install-link" type="button" data-action="install">'+icon('install')+'Додати onmisto на екран iPhone</button>')+sourceInfo()+'<button class="text-button" data-action="privacy">Конфіденційність</button><p class="footer-note">Автооновлення кожні 5 хв, поки сторінка відкрита. Час за Києвом.<br>Показано плановий графік. Фактичне живлення може відрізнятися.</p></footer>';
 }
 function hourCell(hour,outages,date,queue){
   const start=hour*60,end=start+60;
@@ -494,7 +494,7 @@ function detail(item){
   const tabs=addresses.length>1?'<nav class="address-tabs" aria-label="Перемкнути адресу">'+addresses.map(address=>'<button class="address-tab" type="button" data-action="detail" data-id="'+escapeHtml(address.id)+'" aria-current="'+(address.id===item.id)+'">'+escapeHtml(address.name)+'</button>').join('')+'</nav>':'';
   const heading='<div class="detail-heading"><div><p class="eyebrow">Моя адреса</p><h1>'+escapeHtml(item.name)+'</h1><span class="sub">'+(item.streetId?escapeHtml(item.streetText)+', '+escapeHtml(item.house):'Хмельницька область')+'</span></div><span class="queue-badge">Підчерга '+item.queue+'</span></div>';
   const settings='<section class="settings-section"><h2 class="section-title">Налаштування адреси</h2><div class="glass"><label class="row">Назва<input aria-label="Назва адреси" data-field="name" maxlength="60" value="'+escapeHtml(item.name)+'"></label><div class="row"><span>Оператор</span><span>Хмельницькобленерго</span></div><label class="row">Підчерга<select data-field="queue">'+queueOptions(options?.length?[...new Set([item.queue,...options])]:queues,item.queue)+'</select></label>'+(item.streetId?'<p class="sub">'+escapeHtml(item.settlementText)+', '+escapeHtml(item.streetText)+', '+escapeHtml(item.house)+'</p>':'')+'</div><p class="muted">'+(item.streetId?'У сітці враховано відключення обраного приєднання.':'Для перевірки аварійних і планових робіт додай адресу будинку.')+'</p><button class="danger" type="button" data-action="remove" data-id="'+escapeHtml(item.id)+'">Видалити адресу</button></section>';
-  return header+savedScheduleBanner()+changesBanner(item)+tabs+heading+transitionPanel(item)+'<section class="schedule-section" aria-label="Графік світла"><h2 class="section-title">Графік на день</h2>'+dateTabs+summary+hours+'</section>'+eventList(item)+settings+adSlot()+'<footer>'+sourceInfo()+'<p class="footer-note">Час за Києвом. Фактичне живлення може відрізнятися від графіка.</p></footer>';
+  return header+savedScheduleBanner()+changesBanner(item)+tabs+heading+transitionPanel(item)+'<section class="schedule-section" aria-label="Графік світла"><h2 class="section-title">Графік на день</h2>'+dateTabs+summary+hours+'</section>'+eventList(item)+settings+adSlot()+'<footer>'+sourceInfo()+'<button class="text-button" data-action="privacy">Конфіденційність</button><p class="footer-note">Час за Києвом. Фактичне живлення може відрізнятися від графіка.</p></footer>';
 }
 function render(){
   const item=addresses.find(item=>item.id===selected);
@@ -603,6 +603,7 @@ document.addEventListener('click',async event=>{
     case 'fuel-refresh':await refreshFuel();showFuelInfo();break;
     case 'light-tab':pageMode='light';render();break;
     case 'safety-tab':pageMode='safety';render();await refreshTelegram();break;
+    case 'privacy':openDialog('Конфіденційність','<p class="muted">Для статистики зберігаємо випадковий ідентифікатор браузера, кількість заходів, тип пристрою та категорію джерела переходу. IP-адреси, точне місце, адреси будинків і повні посилання переходів у статистику не записуються. Дані заходів видаляються через 30 днів. Видалення даних сайту створить новий ідентифікатор. За ввімкненого Do Not Track статистика не збирається.</p><button class="wide primary" data-action="close">Зрозуміло</button>');break;
     case 'safety-info':openDialog('Про стрічку','<p class="muted">Під час тривоги в області показуємо останні 20 доступних дописів каналу без відбору за словами. Оновлюємо кожні 30 секунд, поки розділ відкритий. Фото й відео відкриваються в Telegram.</p><p class="muted">Канал неофіційний. Дописи можуть містити новини й рекламу, а також повідомлення до початку поточної тривоги. Орієнтуйся на офіційні сповіщення. Порожня стрічка не означає відсутність загрози.</p><button class="wide primary" data-action="close">Зрозуміло</button>');break;
     case 'telegram-refresh':await refreshTelegram();break;
     case 'detail':showAddress(id);break;
@@ -670,6 +671,7 @@ document.addEventListener('pointerdown',event=>{
   button.append(wave);wave.addEventListener('animationend',()=>wave.remove(),{once:true});
 },{passive:true});
 
+/* VISIT_TRACKER */
 /* ADVERTISEMENT */
 render();refresh();refreshAirRaid();refreshFuel();setupOfflineShell();
 window.addEventListener('online',()=>{refresh();refreshAirRaid();refreshFuel();if(pageMode==='safety')refreshTelegram()});
