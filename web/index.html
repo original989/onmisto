@@ -168,6 +168,13 @@ dialog[open]{animation:dialog-arrive 220ms cubic-bezier(.2,.8,.2,1)}
 
 
 .ad-slot{border:1px solid var(--glass-edge);border-radius:19px;background:var(--glass);overflow:hidden;box-shadow:var(--glass-shadow)}.ad-empty{padding:15px 18px;display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;color:var(--dim)}.ad-tag{display:block;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}.ad-link{display:block;color:var(--ink);text-decoration:none}.ad-link img{display:block;width:100%;max-height:240px;object-fit:contain;background:var(--bg)}.ad-copy{padding:16px 18px}.ad-copy strong{display:block;font-size:18px;line-height:1.35;margin-top:5px;overflow-wrap:anywhere}.ad-copy p{font-size:13px;line-height:1.5;margin:6px 0 0;color:var(--dim);overflow-wrap:anywhere}.ad-cta{display:block;color:var(--accent);font-size:12px;margin-top:10px}
+
+/* Explicit icon button layout avoids native Safari padding and grid intrinsic sizing. */
+.icon-button{display:inline-flex;align-items:center;justify-content:center;padding:0;line-height:1;vertical-align:middle;-webkit-appearance:none;appearance:none;box-sizing:border-box}
+.icon-button>svg{display:block;flex:0 0 auto;margin:0;pointer-events:none}
+.dialog-head{min-width:0}
+.dialog-head h2{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.dialog-head .icon-button{flex:0 0 34px;padding:0}
 </style>
 </head>
 <body>
