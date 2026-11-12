@@ -28,6 +28,33 @@
           "priceCents": 9090
         }
       }
+    },
+    {
+      "date": "2026-11-13",
+      "observedAt": "2026-11-12T22:47:31.761Z",
+      "publishedDate": "2026-11-12",
+      "fuels": {
+        "1": {
+          "name": "upgDIESEL",
+          "priceCents": 10490
+        },
+        "2": {
+          "name": "A-95",
+          "priceCents": 8690
+        },
+        "4": {
+          "name": "Газ",
+          "priceCents": 6090
+        },
+        "5": {
+          "name": "EURO DIESEL",
+          "priceCents": 10190
+        },
+        "9": {
+          "name": "upg95",
+          "priceCents": 8990
+        }
+      }
     }
   ]
 }
