@@ -2,7 +2,7 @@ name: Record daily UPG Slavuta prices
 on:
   workflow_dispatch:
   schedule:
-    - cron: '55 20,21 * * *'
+    - cron: '17 */4 * * *'
   push:
     branches: [main]
     paths:
