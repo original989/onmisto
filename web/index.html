@@ -61,7 +61,7 @@ button{touch-action:manipulation}
 .install-guide li svg{display:inline-block;width:15px;height:18px;vertical-align:middle;color:var(--accent)}
 .field input,.field select,.row input{font-size:16px}
 @media(display-mode:standalone){.shell{padding-top:calc(12px + env(safe-area-inset-top));padding-bottom:calc(16px + env(safe-area-inset-bottom))}}
-.app-tabs{display:flex;gap:8px}.app-tabs button{flex:1;padding:12px;border:1px solid var(--line);border-radius:13px;background:var(--panel);font-weight:650}.app-tabs button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}.safety-feed{display:grid;gap:14px}.safety-head{display:flex;gap:12px;justify-content:space-between;align-items:start}.safety-head h1{font-size:26px;margin:0;letter-spacing:-.7px}.safety-head p{margin:4px 0 0}.feed-post{padding:18px;background:var(--panel);border:1px solid var(--line);border-radius:18px}.feed-post time{display:block;color:var(--dim);font-size:12px;margin-bottom:10px}.feed-post p{font-size:15px;white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 12px}.feed-post a{font-size:12px}.feed-age{display:block;color:var(--off-ink);font-size:11px;margin-bottom:8px}.feed-meta{font-size:11px;color:var(--dim);margin:0}.safety-feed .notice a{color:inherit}
+.app-tabs{display:flex;gap:8px}.app-tabs button{flex:1;padding:12px;border:1px solid var(--line);border-radius:13px;background:var(--panel);font-weight:650}.app-tabs button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}.safety-feed{display:grid;gap:14px}.safety-head{display:flex;gap:12px;justify-content:space-between;align-items:start}.safety-head h1{font-size:26px;margin:0;letter-spacing:-.7px}.safety-head p{margin:4px 0 0}.feed-post{padding:18px;background:var(--panel);border:1px solid var(--line);border-radius:18px}.feed-post time{display:block;color:var(--dim);font-size:12px;margin-bottom:10px}.feed-post p{font-size:15px;white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 12px}.feed-post a{font-size:12px}.feed-reply{margin:0 0 14px;padding:10px 12px;border-left:3px solid var(--accent);border-radius:0 10px 10px 0;background:var(--soft);overflow-wrap:anywhere}.feed-reply-author{display:block;color:var(--accent);font-size:12px;font-weight:650;margin-bottom:5px}.feed-post .feed-reply p{font-size:13px;line-height:1.55;margin:0 0 6px}.feed-reply small{display:block;color:var(--dim);font-size:11px}.feed-reply a{display:inline-block;margin-top:4px}.feed-age{display:block;color:var(--off-ink);font-size:11px;margin-bottom:8px}.feed-meta{font-size:11px;color:var(--dim);margin:0}.safety-feed .notice a{color:inherit}
 .alarm-card{padding:15px 17px;border:1px solid var(--line);border-radius:16px;background:var(--panel);display:grid;gap:4px}.alarm-card strong{font-size:15px}.alarm-card small{font-size:11px;color:var(--dim)}.alarm-card a{font-size:11px;justify-self:start}.alarm-card.active,.alarm-card.partial{border-color:#df857c;background:var(--off)}.alarm-card.active strong,.alarm-card.partial strong{color:var(--off-ink)}
 
 /* Glass surfaces and touch feedback */
@@ -364,6 +364,11 @@ function installHelp(){
 function addActions(){
   return '<div class="add-actions"><button class="wide primary" type="button" data-action="add">'+icon('plus')+'Додати адресу</button><button class="wide" type="button" data-action="queue">Знаю свою підчергу</button></div>';
 }
+function telegramReplyMarkup(reply){
+  if(!reply)return '';
+  const url=typeof reply.url==='string'&&/^https:\/\/t\.me\/starkon_24_7\/\d+$/.test(reply.url)?reply.url:null;
+  return '<blockquote class="feed-reply"><span class="feed-reply-author">'+escapeHtml(reply.author||'Цитоване повідомлення')+'</span>'+(reply.text?'<p>'+escapeHtml(reply.text)+'</p>':'<p>Текст цитати недоступний.</p>')+(reply.truncated?'<small>Уривок повідомлення</small>':'')+(url?'<a href="'+escapeHtml(url)+'" target="_blank" rel="noopener noreferrer">До оригіналу ↗</a>':'')+'</blockquote>';
+}
 function telegramTime(value){return new Intl.DateTimeFormat('uk-UA',{timeZone:'Europe/Kyiv',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(value))}
 function currentFeedAlarmState(){
   const a=airRaidData,f=Date.parse(a?.fetchedAt),u=a?.sourceUpdatedAt?Date.parse(a.sourceUpdatedAt):f;
@@ -382,7 +387,7 @@ function securityFeed(){
   else{
     body+='<p class="feed-meta">Усі останні дописи · оновлено '+clockFormat.format(new Date(telegramData.fetchedAt))+'</p>';
     if(!telegramData.posts.length)body+='<p class="muted">Публічних дописів поки немає.</p>';
-    body+=telegramData.posts.map(post=>'<article class="feed-post"><time datetime="'+escapeHtml(post.publishedAt)+'">'+telegramTime(post.publishedAt)+'</time><p>'+escapeHtml(post.text)+'</p>'+(post.hasMedia?'<p class="muted">Фото, відео та інші медіа — у Telegram.</p>':'')+(post.truncated?'<p class="muted">Повний текст у Telegram.</p>':'')+'<a href="'+escapeHtml(post.url)+'" target="_blank" rel="noopener noreferrer">Відкрити допис ↗</a></article>').join('');
+    body+=telegramData.posts.map(post=>'<article class="feed-post"><time datetime="'+escapeHtml(post.publishedAt)+'">'+telegramTime(post.publishedAt)+'</time>'+telegramReplyMarkup(post.reply)+(post.text?'<p>'+escapeHtml(post.text)+'</p>':'')+(post.hasMedia?'<p class="muted">Фото, відео та інші медіа — у Telegram.</p>':'')+(post.truncated?'<p class="muted">Повний текст у Telegram.</p>':'')+'<a href="'+escapeHtml(post.url)+'" target="_blank" rel="noopener noreferrer">Відкрити допис ↗</a></article>').join('');
   }
   return body+'<button class="text-button" type="button" data-action="safety-info">Про стрічку</button></section>';
 }

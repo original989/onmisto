@@ -43,3 +43,21 @@ test('alarm gate only opens for fresh active or partial alerts',()=>{
 test('inactive or unknown status returns no posts and never contacts Telegram',async()=>{
  const original=globalThis.fetch;globalThis.fetch=()=>{throw Error('should not fetch')};try{for(const status of ['inactive','unknown']){const result=await loadTelegramFeed({status,fetchedAt:new Date().toISOString()});assert.equal(result.mode,status);assert.deepEqual(result.posts,[])}}finally{globalThis.fetch=original}
 });
+
+test('keeps quoted reply and new text separate, with the current post timestamp',()=>{
+ const quote='<a class="tgme_widget_message_reply" href="https://t.me/starkon_24_7/43465"><span class="tgme_widget_message_author accent_color">Старокостянтинів 24/7</span><div class="tgme_widget_message_reply_text">Тривога превентивна.<br>Є реактивний шахед &amp; курс на Гощу</div><time datetime="2020-01-01T00:00:00Z"></time></a>';
+ const html=page(post('43466', 'Далі на Рівне').replace('<div class="tgme_widget_message_text',quote+'<div class="tgme_widget_message_text'));
+ const item=parseTelegramFeed(html).posts[0];
+ assert.equal(item.text,'Далі на Рівне');
+ assert.deepEqual(item.reply,{author:'Старокостянтинів 24/7',text:'Тривога превентивна.\nЄ реактивний шахед & курс на Гощу',url:'https://t.me/starkon_24_7/43465',truncated:false});
+ assert.equal(item.publishedAt,'2026-11-11T08:28:00.000Z');
+});
+test('quote-only posts stay visible, reject foreign links and mark source excerpts',()=>{
+ const html=page('<div data-post="starkon_24_7/43467"><a class="tgme_widget_message_reply" href="javascript:alert(1)"><div class="tgme_widget_message_reply_text">Реактивний шахед не фіксується…</div></a><time datetime="2026-11-11T10:28:00+02:00"></time></div>');
+ const item=parseTelegramFeed(html).posts[0];
+ assert.equal(item.text,''); assert.equal(item.hasMedia,false);assert.equal(item.reply.url,null);assert.equal(item.reply.truncated,true);
+});
+test('preserves inline blockquotes and nested formatting without dropping the continuation',()=>{
+ const item=parseTelegramFeed(page(post('43468','Перед<blockquote><b>Цитата</b><br>другий рядок</blockquote>Після'))).posts[0];
+ assert.equal(item.text,'Перед\nЦитата\nдругий рядок\nПісля');assert.equal(item.reply,null);
+});

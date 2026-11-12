@@ -3,7 +3,7 @@ const telegramChannel = 'starkon_24_7';
 const telegramSource = 'https://t.me/' + telegramChannel;
 function telegramText(html) {
   return html.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
-    .replace(/<br\s*\/?\s*>/gi, '\n').replace(/<\/div>/gi, '\n').replace(/<[^>]*>/g, '')
+    .replace(/<br\s*\/?\s*>/gi, '\n').replace(/<\/?blockquote\b[^>]*>/gi, '\n').replace(/<\/div>/gi, '\n').replace(/<[^>]*>/g, '')
     .replace(/&#(x[\da-f]+|\d+);/gi, (_, code) => {
       const number = code[0].toLowerCase() === 'x' ? parseInt(code.slice(1), 16) : Number(code);
       return number > 0 && number <= 0x10ffff ? String.fromCodePoint(number) : '';
@@ -11,16 +11,27 @@ function telegramText(html) {
     .replace(/&(nbsp|amp|lt|gt|quot|apos);/gi, (_, entity) => ({nbsp:' ', amp:'&', lt:'<', gt:'>', quot:'"', apos:"'"}[entity.toLowerCase()]))
     .replace(/[ \t\u00a0]+/g, ' ').trim();
 }
-function telegramMessageText(block) {
-  const start = /<div\b[^>]*class="[^"]*\btgme_widget_message_text\b[^"]*"[^>]*>/i.exec(block);
-  if (!start) return '';
+function telegramElement(block, className) {
+  const start = new RegExp('<([a-z][\\w-]*)\\b[^>]*class=["\\\'][^"\\\']*\\b'+className+'\\b[^"\\\']*["\\\'][^>]*>', 'i').exec(block);
+  if (!start) return null;
   const body = block.slice(start.index + start[0].length);
   let depth = 1;
-  for (const tag of body.matchAll(/<\/?div\b[^>]*>/gi)) {
+  for (const tag of body.matchAll(new RegExp('<\\/?'+start[1]+'\\b[^>]*>', 'gi'))) {
     depth += /^<\//.test(tag[0]) ? -1 : 1;
-    if (!depth) return telegramText(body.slice(0, tag.index));
+    if (!depth) return {html:body.slice(0, tag.index), tag:start[0], start:start.index, end:start.index+start[0].length+tag.index+tag[0].length};
   }
   throw new Error('Невідомий формат повідомлення Telegram.');
+}
+function telegramReply(block) {
+  const reply=telegramElement(block,'tgme_widget_message_reply');
+  if(!reply)return null;
+  const text=telegramElement(reply.html,'tgme_widget_message_reply_text');
+  const author=telegramElement(reply.html,'tgme_widget_message_reply_author')||telegramElement(reply.html,'tgme_widget_message_author');
+  const href=/\bhref=["']([^"']+)["']/i.exec(reply.tag)?.[1];
+  // Only expose links to this public channel. Never forward arbitrary HTML or URLs.
+  const match=href && /^https:\/\/t\.me\/(?:s\/)?starkon_24_7\/(\d+)(?:\?[^#]*)?$/.exec(href);
+  const value=telegramText(text?.html||'');
+  return {text:value.slice(0,12000),author:telegramText(author?.html||'').slice(0,200),url:match?telegramSource+'/'+match[1]:null,truncated:value.length>12000||/\.\.\.|…$/.test(value)};
 }
 export function parseTelegramFeed(html, now = new Date()) {
   if (!/tgme_channel_history/.test(html)) throw new Error('Публічна стрічка Telegram недоступна. Відкрий канал у Telegram.');
@@ -29,12 +40,15 @@ export function parseTelegramFeed(html, now = new Date()) {
   for (let i = 0; i < markers.length; i++) {
     const block = html.slice(markers[i].index, markers[i + 1]?.index ?? html.length);
     const id = markers[i][1];
-    const text = telegramMessageText(block);
-    const datetime = /<time\b[^>]*datetime="([^"]+)"/i.exec(block)?.[1];
+    const replyElement=telegramElement(block,'tgme_widget_message_reply');
+    const reply=telegramReply(block);
+    const ownBlock=replyElement?block.slice(0,replyElement.start)+block.slice(replyElement.end):block;
+    const text = telegramText(telegramElement(ownBlock,'tgme_widget_message_text')?.html||'');
+    const datetime = /<time\b[^>]*datetime="([^"]+)"/i.exec(ownBlock)?.[1];
     
     const timestamp = Date.parse(datetime);
     if (!datetime || !Number.isFinite(timestamp)) throw new Error('Не вдалося перевірити час повідомлення Telegram.');
-    posts.set(id, {id, text:text?text.slice(0,12000):'Допис із медіа. Відкрий у Telegram.', hasMedia:!text||/tgme_widget_message_(photo|video|document|voice|sticker)/.test(block), truncated:text.length>12000, publishedAt:new Date(timestamp).toISOString(), url:telegramSource+'/'+id});
+    posts.set(id, {id, text:text?text.slice(0,12000):reply?'':'Допис із медіа. Відкрий у Telegram.', reply, hasMedia:(!text&&!reply)||/tgme_widget_message_(photo|video|document|voice|sticker)/.test(ownBlock), truncated:text.length>12000, publishedAt:new Date(timestamp).toISOString(), url:telegramSource+'/'+id});
   }
   if (!posts.size) throw new Error('У публічній стрічці немає доступних повідомлень. Відкрий Telegram.');
   return {channel:'Старокостянтинів 24/7', source:telegramSource, fetchedAt:now.toISOString(), posts:[...posts.values()].sort((a,b)=>b.publishedAt.localeCompare(a.publishedAt)||Number(b.id)-Number(a.id)).slice(0,20)};
