@@ -1,3 +1,21 @@
+const tradingHeaders={'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'};
+async function tradingMarket(request){
+ const fail=(error,status)=>new Response(JSON.stringify({error}),{status,headers:tradingHeaders});
+ if(request.method!=='GET')return fail('Метод не підтримується',405);
+ const origin=request.headers.get('origin');if(origin&&origin!==new URL(request.url).origin)return fail('Невірне джерело',403);
+ const auth=request.headers.get('authorization')||'';
+ if(!/^Bearer (?:github_pat_[A-Za-z0-9_]+|gh[pousr]_[A-Za-z0-9_]+)$/.test(auth)||auth.length>300)return fail('Потрібна авторизація власника',401);
+ try{
+  const identity=await fetch('https://api.github.com/user',{headers:{Authorization:auth,Accept:'application/vnd.github+json','User-Agent':'onmisto-trading'},signal:AbortSignal.timeout(9000),redirect:'manual'});
+  if(!identity.ok)return fail('Не вдалося перевірити власника',401);
+  const user=await identity.json();if(user.login!=='original989')return fail('Доступ заборонено',403);
+  const result=await fetch('https://whitebit.com/api/v4/public/ticker',{headers:{Accept:'application/json'},signal:AbortSignal.timeout(10000),redirect:'manual'});
+  if(!result.ok)return fail('WhiteBIT тимчасово не відповідає',502);
+  const data=await result.json();const pairs=['BTC_USDT','ETH_USDT','SOL_USDT','ADA_USDT','XRP_USDT'];const tickers={};
+  for(const pair of pairs){const t=data[pair];if(t)tickers[pair]={last_price:String(t.last_price||''),change:Number(t.change||0)}}
+  return new Response(JSON.stringify({tickers,mode:'read-only',asOf:new Date().toISOString()}),{headers:tradingHeaders});
+ }catch{return fail('Не вдалося отримати дані біржі',502)}
+}
 import { statsRoute } from './stats.js';
 import { loadAdvertisement, manageAdvertisement } from './ads.js';
 import { loadSlavutaDiesel } from './fuel.js';
@@ -39,6 +57,8 @@ export default {
     if(url.pathname==='/api/visit'||url.pathname==='/api/visitor-stats'||url.pathname==='/api/ad-event')return statsRoute(request,env);
     if(url.pathname==='/api/ad-management')return manageAdvertisement(request);
     if(request.method!=='GET'&&request.method!=='HEAD')return json({error:'Метод не підтримується.'},405);
+    if(url.pathname==='/trading')return new Response(tradingPage,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'no-referrer','content-security-policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"}});
+    if(url.pathname==='/api/trading/market')return tradingMarket(request);
     if(url.pathname==='/ads-manager')return new Response(adsManagerPage,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'no-referrer','content-security-policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src data: blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"}});
     if(url.pathname==='/sw.js')return new Response(serviceWorkerCode,{headers:{'content-type':'application/javascript; charset=utf-8','cache-control':'no-cache','service-worker-allowed':'/','x-content-type-options':'nosniff'}});
     if(url.pathname==='/manifest.webmanifest')return new Response(JSON.stringify(appManifest),{headers:{'content-type':'application/manifest+json; charset=utf-8','cache-control':'no-cache','x-content-type-options':'nosniff'}});
