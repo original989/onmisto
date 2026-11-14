@@ -20,3 +20,13 @@ This directory is an isolated prototype, **not linked from the public ONMISTO si
 - Responsive Ukrainian mobile-first interface
 
 **Status:** design and safety preparation only. No real trading or private WhiteBIT connection exists.
+
+## Cloudflare Access setup (required before merge/deploy)
+1. Cloudflare Zero Trust → Access → Applications → Add application → Self-hosted.
+2. Protect BOTH `https://YOUR_ONMISTO_DOMAIN/trading*` and `https://YOUR_ONMISTO_DOMAIN/api/trading/*` with Access applications/policies restricted to your exact email. Both paths must be protected by an Access app with the **same application AUD**; otherwise configure a single application with both paths.
+3. Set Worker environment variables (not public JS): `TRADING_ACCESS_TEAM` (e.g. `yourteam.cloudflareaccess.com`), `TRADING_ACCESS_AUD` (application AUD tag), `TRADING_OWNER_EMAIL` (your verified email).
+4. Confirm unauthenticated requests to both paths are blocked; confirm a different authorized account is rejected by the Worker even if Cloudflare Access lets it through.
+5. Confirm the protected panel works on iPhone and public homepage is unchanged.
+6. Merge only after tests pass and Cloudflare Access is configured. Do not use a trading API key for login.
+
+**Important:** this module intentionally fails closed with HTTP 503 if any Access settings are missing. It cannot be used before configuration. No live trading, account balances, or WhiteBIT private API calls are implemented.
