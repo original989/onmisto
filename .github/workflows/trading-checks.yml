@@ -1,0 +1,24 @@
+name: Trading module checks
+on:
+  pull_request:
+    paths:
+      - 'web/trading.html'
+      - 'web/ads-manager.html'
+      - 'worker/index.js'
+      - 'scripts/build.mjs'
+      - 'tests/trading.test.mjs'
+      - '.github/workflows/trading-checks.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm run build
+      - run: npm run validate
+      - run: node --test tests/trading.test.mjs
