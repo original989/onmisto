@@ -85,7 +85,7 @@
     },
     {
       "date": "2026-11-15",
-      "observedAt": "2026-11-15T06:36:14.642Z",
+      "observedAt": "2026-11-15T15:40:35.726Z",
       "publishedDate": "2026-11-15",
       "fuels": {
         "1": {
@@ -103,6 +103,10 @@
         "5": {
           "name": "EURO DIESEL",
           "priceCents": 9990
+        },
+        "9": {
+          "name": "upg95",
+          "priceCents": 8990
         }
       }
     }
