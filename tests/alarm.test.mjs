@@ -48,3 +48,31 @@ test('source timestamps are interpreted in Kyiv in summer and winter',()=>{
  assert.equal(normalizeUbilling(data('2026-07-01 15:00:00'),new Date('2026-07-01T12:00:10Z')).sourceUpdatedAt,'2026-07-01T12:00:00.000Z');
  assert.equal(normalizeUbilling(data('2026-01-01 14:00:00'),new Date('2026-01-01T12:00:10Z')).sourceUpdatedAt,'2026-01-01T12:00:00.000Z');
 });
+
+const liveUbilling=(alertnow=true)=>({
+ cachedat:new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Kyiv',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).format(new Date()),
+ states:{'Хмельницька область':{alertnow}}
+});
+test('prefers fresh explicit provider and coalesces simultaneous alarm requests',async()=>{
+ const {loadUbillingAirRaid}=await import('../worker/alarm.js?explicit-feed');
+ const original=globalThis.fetch;const calls=[];
+ try {
+  globalThis.fetch=async url=>{calls.push(url);return Response.json(liveUbilling())};
+  const [a,b]=await Promise.all([loadUbillingAirRaid(),loadUbillingAirRaid()]);
+  assert.equal(a.status,'active');assert.deepEqual(a,b);
+  assert.deepEqual(calls,['https://ubilling.net.ua/aerialalerts/?source=aiu']);
+  assert.equal(a.source,calls[0]);await loadUbillingAirRaid();assert.equal(calls.length,1);
+ }finally{globalThis.fetch=original}
+});
+test('rejects stale explicit provider, permits only a fresh fallback and bounds failed retries',async()=>{
+ const {loadUbillingAirRaid}=await import('../worker/alarm.js?fallback-feed');
+ const original=globalThis.fetch;const calls=[];
+ try {
+  globalThis.fetch=async url=>{calls.push(url);return Response.json(url.includes('source=aiu')?{...liveUbilling(),cachedat:'2026-01-01 00:00:00'}:liveUbilling(false))};
+  assert.equal((await loadUbillingAirRaid()).status,'inactive');assert.equal(calls.length,2);
+  const failed=await import('../worker/alarm.js?failed-feeds');let attempts=0;
+  globalThis.fetch=async()=>{attempts++;return Response.json({...liveUbilling(),cachedat:'2026-01-01 00:00:00'})};
+  assert.equal((await failed.loadUbillingAirRaid()).status,'unknown');
+  assert.equal((await failed.loadUbillingAirRaid()).status,'unknown');assert.equal(attempts,2);
+ }finally{globalThis.fetch=original}
+});

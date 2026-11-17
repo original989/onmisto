@@ -60,16 +60,23 @@ export function normalizeUbilling(data, now = new Date()) {
 let ubillingResultCache=null;
 let ubillingPending=null;
 export async function loadUbillingAirRaid() {
-  if (ubillingResultCache && Date.now()-ubillingResultCache.at<30000 && Date.now()-Date.parse(ubillingResultCache.data.sourceUpdatedAt)<120000) return ubillingResultCache.data;
+  if (ubillingResultCache && Date.now()-ubillingResultCache.at<30000 && (ubillingResultCache.data.status==='unknown'||Date.now()-Date.parse(ubillingResultCache.data.sourceUpdatedAt)<120000)) return ubillingResultCache.data;
   if (ubillingPending) return ubillingPending;
   ubillingPending=(async()=>{
-    try{
-      const response=await fetch(ubillingSource,{headers:{Accept:'application/json'},redirect:'manual',signal:AbortSignal.timeout(10000),cache:'no-store'});
-      if (!response.ok) throw new Error('Ubilling unavailable');
-      const data=normalizeUbilling(await response.json());
-      ubillingResultCache={at:Date.now(),data};
-      return data;
-    }catch{return {status:'unknown',region:alarmRegionName,source:ubillingSource,provider:'ubilling',coverage:'oblast-only'}}
+    // The default aggregator can get stuck on an old provider. Prefer the explicit
+    // alerts.in.ua feed, then use default only if it passes the same freshness checks.
+    for (const endpoint of [ubillingSource+'?source=aiu',ubillingSource]) {
+      try {
+        const response=await fetch(endpoint,{headers:{Accept:'application/json'},redirect:'manual',signal:AbortSignal.timeout(5000),cache:'no-store'});
+        if (!response.ok) throw new Error('Ubilling unavailable');
+        const data={...normalizeUbilling(await response.json()),source:endpoint};
+        ubillingResultCache={at:Date.now(),data};
+        return data;
+      } catch {}
+    }
+    const data={status:'unknown',region:alarmRegionName,source:ubillingSource,provider:'ubilling',coverage:'oblast-only'};
+    ubillingResultCache={at:Date.now(),data};
+    return data;
   })();
   try{return await ubillingPending}finally{ubillingPending=null}
 }
