@@ -26,12 +26,16 @@ export function parseSchedules(html, now = new Date()) {
   for (const block of html.split(/<hr\b[^>]*>/i)) {
     const text=textOnly(block);
     const date=text.match(/(?:Укренерго[»”"\s]*|на)\s*(\d{1,2})\s+(січня|лютого|березня|квітня|травня|червня|липня|серпня|вересня|жовтня|листопада|грудня)(?:\s+(20\d{2}))?/i);
-    if (!date || !/Підчерга/i.test(text)) continue;
-    const month=months.indexOf(date[2].toLowerCase());
-    const year=date[3] ? Number(date[3]) : reference.getUTCFullYear();
-    const candidates=(date[3]?[year]:[year-1,year,year+1]).map(y=>new Date(Date.UTC(y,month,Number(date[1]))));
+    const numericDate=text.match(/Укренерго[»”"\s]*(\d{1,2})\.(\d{2})\.(20\d{2})\b/i);
+    if ((!date && !numericDate) || !/Підчерга/i.test(text)) continue;
+    const publishedDate=numericDate || date;
+    const month=numericDate ? Number(numericDate[2])-1 : months.indexOf(date[2].toLowerCase());
+    const year=publishedDate[3] ? Number(publishedDate[3]) : reference.getUTCFullYear();
+    const candidates=(publishedDate[3]?[year]:[year-1,year,year+1]).map(y=>new Date(Date.UTC(y,month,Number(publishedDate[1]))));
     candidates.sort((a,b)=>Math.abs(a-reference)-Math.abs(b-reference));
     const dateKey=candidates[0].toISOString().slice(0,10);
+    // The source publishes revisions in newest-first order.
+    if (days.some(day=>day.date===dateKey)) continue;
     const queues={};
     for (const row of text.matchAll(/Підчерга\s+([1-6]\.[12])\s*[–—−-]\s*([^\n]+)/gi)) {
       const intervals=[];
@@ -41,11 +45,13 @@ export function parseSchedules(html, now = new Date()) {
         if (sm>59 || em>59 || sh>23 || eh>24 || end>1440 || start>=end) throw new Error('Невідомий формат годин у джерелі.');
         intervals.push([start,end]);
       }
-      if (!intervals.length) throw new Error('Не вдалося прочитати години відключень.');
+      if (!intervals.length && !/^(?:вимкнень|відключень) немає[.!]?$/i.test(row[2].trim())) {
+        throw new Error('Не вдалося прочитати години відключень.');
+      }
       queues[row[1]]=mergeIntervals(intervals);
     }
     if (Object.keys(queues).length !== 12) throw new Error('У джерелі неповний графік підчерг.');
-    if (!days.some(day=>day.date===dateKey)) days.push({date:dateKey,queues});
+    days.push({date:dateKey,queues});
   }
   if (!days.length) throw new Error('Не вдалося розпізнати графік на сайті обленерго.');
   return { days:days.sort((a,b)=>a.date.localeCompare(b.date)), source:scheduleUrl, fetchedAt:now.toISOString(), today:kyivDate(now) };
