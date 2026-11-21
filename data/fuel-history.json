@@ -235,13 +235,9 @@
     },
     {
       "date": "2026-11-21",
-      "observedAt": "2026-11-21T01:32:21.995Z",
+      "observedAt": "2026-11-21T12:41:21.203Z",
       "publishedDate": "2026-11-21",
       "fuels": {
-        "1": {
-          "name": "upgDIESEL",
-          "priceCents": 10090
-        },
         "2": {
           "name": "A-95",
           "priceCents": 8290
