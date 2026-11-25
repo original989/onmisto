@@ -327,12 +327,12 @@
     },
     {
       "date": "2026-11-25",
-      "observedAt": "2026-11-25T00:46:28.995Z",
+      "observedAt": "2026-11-25T14:25:55.359Z",
       "publishedDate": "2026-11-25",
       "fuels": {
         "1": {
           "name": "upgDIESEL",
-          "priceCents": 9890
+          "priceCents": 9790
         },
         "2": {
           "name": "A-95",
@@ -340,11 +340,11 @@
         },
         "4": {
           "name": "Газ",
-          "priceCents": 6190
+          "priceCents": 6090
         },
         "5": {
           "name": "EURO DIESEL",
-          "priceCents": 9490
+          "priceCents": 9390
         },
         "9": {
           "name": "upg95",
